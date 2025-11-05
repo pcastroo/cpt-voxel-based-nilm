@@ -1,0 +1,23 @@
+# Jupyter
+.ipynb_checkpoints/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv*/
+*.env
+
+#datasets
+datasets/
+
+# IDEs
+.vscode/
+*.code-workspace
+
+# Outros
+.DS_Store
+
+# Preprocessed data
+*.npy
