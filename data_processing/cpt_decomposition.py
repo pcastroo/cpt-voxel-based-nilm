@@ -5,8 +5,7 @@ F_MAINS = 60 # mains frequency in Hz
 POINTS_PER_CYCLE = 500 # number of samples per cycle
 DT = 1 / (F_MAINS * POINTS_PER_CYCLE) # time step
 
-# Class to hold decomposed current components
-class CurrentComponents:
+class CurrentDecomposition:
     def __init__(self, i_active, i_reactive, i_void):
         self.i_active = i_active
         self.i_reactive = i_reactive
@@ -180,4 +179,4 @@ def CPT(Vs, Is):
     i_void = steady_removal(np.array(v_iv))
 
     print("Decomposition CPT completed.")
-    return CurrentComponents(i_active, i_reactive, i_void)
+    return CurrentDecomposition(i_active, i_reactive, i_void)

@@ -21,3 +21,5 @@ datasets/
 
 # Preprocessed data
 *.npy
+*.keras
+*.h5

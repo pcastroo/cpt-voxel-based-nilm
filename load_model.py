@@ -3,22 +3,26 @@ import tensorflow as tf
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-from data_processing.dataset_builder import load_or_process_data, debug_load_data
+from data_processing.core import process_data, debug_load_data
 
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.preprocessing import LabelEncoder
 
-# hyperparameters
+ # hyperparameters
 BATCH_SIZE = 32
 EPOCHS = 20
 PATH = 'appliance_classifier_voxel_steady.keras'
 NUM_CLASSES = 16
 
+# file paths
+x_path='X_steady.npy'
+y_path='y_steady.npy'
+
 # ---------- load model ----------
 model = tf.keras.models.load_model(PATH)
 
-X, y = load_or_process_data()
+X, y = np.load(x_path), np.load(y_path)
 
 unique_classes, class_counts = np.unique(y, return_counts=True)
 for cls, count in zip(unique_classes, class_counts):

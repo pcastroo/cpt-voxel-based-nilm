@@ -2,7 +2,6 @@ import os
 import soundfile as sf
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
 
 class WhitedData:
     def __init__(self, current_segment, voltage_segment,

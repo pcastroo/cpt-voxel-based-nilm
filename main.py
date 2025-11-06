@@ -6,17 +6,24 @@ from sklearn.metrics import classification_report, confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from data_processing.dataset_builder import load_or_process_data, debug_load_data
+from data_processing.core import process_data
 
 # constants
 BATCH_SIZE = 32
 EPOCHS = 20
-PATH = 'appliance_classifier_voxel_steady.keras'
-NUM_CLASSES = 16  
-VOXEL_RESOLUTION = 32  
+PATH = 'model_voxel_steady_aug2.keras'
+NUM_CLASSES = 16 
+VOXEL_RESOLUTION = 32 
+
+# file paths
+x_path = 'X_steady_aug.npy'
+y_path = 'y_steady_aug.npy'
 
 # ---------- preprocess data ----------
-X, y = load_or_process_data()
+if x_path == '' and y_path == '':
+    X, y = process_data('X_steady_aug.npy', 'y_steady_aug.npy')
+else:
+    X, y = np.load(x_path), np.load(y_path)
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y) # split data into train and test 
     

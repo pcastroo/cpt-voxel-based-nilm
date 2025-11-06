@@ -6,17 +6,18 @@ from matplotlib.colors import LinearSegmentedColormap
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from data_processing.dataset_builder import debug_load_data
+from data_processing.core import debug_load_data
 from loaders.plaid_loader import load_plaid
 from loaders.lit_loader import load_lit
 from loaders.whited_loader import load_whited
 from data_processing.cpt_decomposition import CPT  
 
-dados = load_plaid(max_workers=8)
+dados = load_plaid()
 data = dados[2]  # Select the i-th file
 
 F_MAINS = 60 # mains frequency in Hz
 POINTS_PER_CYCLE = 500 # number of samples per cycle
+DURATION = len(data.current_segment) / data.sampling_frequency  # duration in seconds
 DT = 1 / (F_MAINS * POINTS_PER_CYCLE) # time step
 
 cpt = CPT([data.voltage_segment], [data.current_segment])
@@ -24,30 +25,35 @@ cpt = CPT([data.voltage_segment], [data.current_segment])
 t_clean = np.arange(len(cpt.i_active)) * DT
 t = np.arange(len(data.current_segment)) * DT
 
-# plots 2d
+# PLOTS 2D
 def plot_2d(cpt, data):
     fig = plt.figure(figsize=(15, 10))
+    
+    # Título geral no topo da figura
+    fig.suptitle(
+        f"{data.label} - {data.sampling_frequency/1000:.0f} kHz, 60 Hz, {DURATION:.2f}s",
+        fontsize=16,
+        fontweight='bold'
+    )
 
     plots = [
-        (t_clean, cpt.i_active, 'Time [s]', 'Active [Ia]'),
-        (t_clean, cpt.i_reactive, 'Time [s]', 'Reactive [Ir]'),
-        (t_clean, cpt.i_void, 'Time [s]', 'Void [Iv]'),
-        (t, data.current_segment, 'Time [s]', 'Total [It]'),
+        (t_clean, cpt.i_active, 'Time [s]', 'Active Current [Ia]'),
+        (t_clean, cpt.i_reactive, 'Time [s]', 'Reactive Current [Ir]'),
+        (t_clean, cpt.i_void, 'Time [s]', 'Void Current [Iv]'),
+        (t, data.current_segment, 'Time [s]', 'Total Current [It]'),
     ]
 
     for idx, (x, y, xlabel, ylabel) in enumerate(plots, start=1):
         ax = fig.add_subplot(2, 2, idx) 
         ax.plot(x, y, color='blue')
-
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
-        ax.set_title(
-            f"{data.appliance_type} ({xlabel} x {ylabel}\n"
-            f"{data.sampling_frequency/1000:.0f} kHz, 60 Hz, duration: {data.duration:.2f}s"
-        )
+        ax.set_title(ylabel)  # título simplificado (só o nome da corrente)
+    
+    plt.tight_layout(rect=[0, 0, 1, 0.96])  # ajustar para não sobrepor suptitle
     return fig, ax
 
-# plots 3d
+# PLOT 3D
 def plot_3d(cpt):
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection='3d')
@@ -57,23 +63,23 @@ def plot_3d(cpt):
     ax.set_xlabel('Active [A]')
     ax.set_ylabel('Reactive [A]')
     ax.set_zlabel('Void [A]')
-    ax.set_title(f"{data.appliance_type}\n")
+    ax.set_title(f"{data.label}\n")
 
     return fig, ax
 
-#X, y = debug_load_data()
+# LOAD DATA FOR VOXEL VISUALIZATION AND STATISTICS
+X, y = debug_load_data()
 
-""" def visualize_voxel_3d(voxel_grid, threshold=0.01, title="Voxel Visualization", 
-                       figsize=(10, 10), alpha=0.6, cmap='viridis'):
+def visualize_voxel_3d(voxel_grid):
     # Remove channel dimension if present
     if voxel_grid.ndim == 4:
         voxel_grid = voxel_grid.squeeze()
     
-    fig = plt.figure(figsize=figsize)
+    fig = plt.figure(figsize=(10, 10))
     ax = fig.add_subplot(111, projection='3d')
     
     # Get coordinates of non-zero voxels above threshold
-    filled = voxel_grid > threshold
+    filled = voxel_grid > 0.01
     x, y, z = np.where(filled)
     
     # Get density values for coloring
@@ -87,18 +93,18 @@ def plot_3d(cpt):
     
     # Create scatter plot with density-based coloring
     scatter = ax.scatter(x, y, z, c=colors_normalized, 
-                        cmap=cmap, marker='o', 
-                        s=20, alpha=alpha, edgecolors='none')
+                        cmap='viridis', marker='o', 
+                        s=20, alpha=0.6, edgecolors='none')
     
     # Add colorbar
     cbar = plt.colorbar(scatter, ax=ax, pad=0.1, shrink=0.8)
     cbar.set_label('Normalized Density', rotation=270, labelpad=15)
     
     # Labels
-    ax.set_xlabel('Ia (Active)', fontsize=10)
-    ax.set_ylabel('Ir (Reactive)', fontsize=10)
-    ax.set_zlabel('Iv (Void)', fontsize=10)
-    ax.set_title(title, fontsize=12, pad=20)
+    ax.set_xlabel('Ia', fontsize=10)
+    ax.set_ylabel('Ir', fontsize=10)
+    ax.set_zlabel('Iv', fontsize=10)
+    ax.set_title("Voxel Visualization", fontsize=12, pad=20)
     
     # Set equal aspect ratio
     resolution = voxel_grid.shape[0]
@@ -109,7 +115,9 @@ def plot_3d(cpt):
     plt.tight_layout()
     return fig, ax
 
-def visualize_voxel_slices(voxel_grid, title="Voxel Slices", n_slices=8):
+def visualize_voxel_slices(voxel_grid):
+    n_slices=8
+
     # Remove channel dimension if present
     if voxel_grid.ndim == 4:
         voxel_grid = voxel_grid.squeeze()
@@ -118,7 +126,7 @@ def visualize_voxel_slices(voxel_grid, title="Voxel Slices", n_slices=8):
     slice_indices = np.linspace(0, resolution-1, n_slices, dtype=int)
     
     fig, axes = plt.subplots(3, n_slices, figsize=(16, 6))
-    fig.suptitle(title, fontsize=14)
+    fig.suptitle("Voxel Slices", fontsize=14)
     
     # Slices along Ia axis (YZ plane)
     for i, idx in enumerate(slice_indices):
@@ -147,8 +155,7 @@ def visualize_voxel_slices(voxel_grid, title="Voxel Slices", n_slices=8):
     return fig
 
 
-def visualize_multiple_samples(voxel_dataset, labels, indices=None, 
-                               threshold=0.01, figsize=(15, 10)):
+def visualize_multiple_samples(voxel_dataset, labels, indices=None):
     if indices is None:
         indices = list(range(min(6, len(voxel_dataset))))
     
@@ -156,7 +163,7 @@ def visualize_multiple_samples(voxel_dataset, labels, indices=None,
     cols = 3
     rows = (n_samples + cols - 1) // cols
     
-    fig = plt.figure(figsize=figsize)
+    fig = plt.figure(figsize=(15, 10))
     
     for i, idx in enumerate(indices):
         ax = fig.add_subplot(rows, cols, i+1, projection='3d')
@@ -165,7 +172,7 @@ def visualize_multiple_samples(voxel_dataset, labels, indices=None,
         label = labels[idx]
         
         # Get non-zero voxels
-        filled = voxel > threshold
+        filled = voxel > 0.01
         x, y, z = np.where(filled)
         colors = voxel[filled]
         
@@ -187,7 +194,7 @@ def visualize_multiple_samples(voxel_dataset, labels, indices=None,
     plt.tight_layout()
     return fig
 
-def compare_voxel_statistics(voxel_dataset, labels):
+def compare_voxel_statistics(voxel_dataset):
     print("=" * 60)
     print("VOXEL DATASET STATISTICS")
     print("=" * 60)
@@ -229,40 +236,8 @@ def compare_voxel_statistics(voxel_dataset, labels):
     print(f"Average max density: {np.mean(max_densities):.4f}")
     print(f"Average mean density (non-zero): {np.mean(mean_densities):.4f}")
     
-    # Label distribution
-    unique_labels, counts = np.unique(labels, return_counts=True)
-    print(f"\n--- LABEL DISTRIBUTION ---")
-    for label, count in zip(unique_labels, counts):
-        print(f"Label {label}: {count} samples ({count/len(labels)*100:.1f}%)")
     
     print("=" * 60)
-    
-    # Create visualization of statistics
-    fig, axes = plt.subplots(2, 2, figsize=(12, 8))
-    fig.suptitle('Voxel Dataset Statistics', fontsize=14)
-    
-    # Sparsity distribution
-    axes[0, 0].hist(sparsities, bins=30, edgecolor='black', alpha=0.7)
-    axes[0, 0].set_xlabel('Sparsity')
-    axes[0, 0].set_ylabel('Frequency')
-    axes[0, 0].set_title('Sparsity Distribution')
-    axes[0, 0].axvline(np.mean(sparsities), color='red', linestyle='--', label='Mean')
-    axes[0, 0].legend()
-    
-    # Occupied voxels
-    axes[0, 1].hist(occupied_voxels, bins=30, edgecolor='black', alpha=0.7, color='green')
-    axes[0, 1].set_xlabel('Number of Occupied Voxels')
-    axes[0, 1].set_ylabel('Frequency')
-    axes[0, 1].set_title('Occupied Voxels Distribution')
-    
-    # Max density per sample
-    axes[1, 0].hist(max_densities, bins=30, edgecolor='black', alpha=0.7, color='orange')
-    axes[1, 0].set_xlabel('Max Density Value')
-    axes[1, 0].set_ylabel('Frequency')
-    axes[1, 0].set_title('Maximum Density Distribution')
-    
-    plt.tight_layout()
-    return fig """
 
 # visualize plot 2d
 fig, ax = plot_2d(cpt, data)
@@ -274,17 +249,19 @@ fig, ax = plot_3d(cpt)
 plt.tight_layout()
 plt.show()  
 
-""" # visualize voxel 3d 
-fig, ax = visualize_voxel_3d(X[0], threshold=0.01)
+# visualize voxel 3d 
+fig, ax = visualize_voxel_3d(X[2])
 plt.tight_layout()
 plt.show()
 
 # visualize voxel slices
-fig = visualize_voxel_slices(X[0])
+fig = visualize_voxel_slices(X[2])
 plt.tight_layout()  
 plt.show()
 
 # visualize dataset statistics
-fig = visualize_multiple_samples(X, y, indices=[0, 1, 2, 3, 4, 5], threshold=0.01)
+fig = visualize_multiple_samples(X, y, indices=[0, 1, 2, 3, 4, 5])
 plt.tight_layout()
-plt.show() """
+plt.show() 
+
+compare_voxel_statistics(X)
