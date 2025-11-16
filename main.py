@@ -11,21 +11,21 @@ from data_processing.core import process_data
 # constants
 BATCH_SIZE = 32
 EPOCHS = 20
-PATH = 'model_voxel_steady_aug2.keras'
-NUM_CLASSES = 16 
+PATH = 'model_RES32.keras'
+NUM_CLASSES = 16
 VOXEL_RESOLUTION = 32 
 
 # file paths
-x_path = 'X_steady_aug.npy'
-y_path = 'y_steady_aug.npy'
+x_path = 'X_RES32.npy'
+y_path = 'y_RES32.npy'
 
 # ---------- preprocess data ----------
 if x_path == '' and y_path == '':
-    X, y = process_data('X_steady_aug.npy', 'y_steady_aug.npy')
+    X, y = process_data('X_RES32_2.npy', 'y_RES32_2.npy')
 else:
     X, y = np.load(x_path), np.load(y_path)
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y) # split data into train and test 
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42, stratify=y) # split data into train and test 
     
 # transform labels to integers
 le = LabelEncoder()
@@ -39,22 +39,22 @@ y_true_onehot = tf.keras.utils.to_categorical(y_true, NUM_CLASSES)
 # ---------- build and train model ----------
 # build model
 model = tf.keras.models.Sequential([
-    # Bloco convolucional 1
+    # convolutional block 1
     tf.keras.layers.Conv3D(32, (3, 3, 3), activation='relu', input_shape=(VOXEL_RESOLUTION, VOXEL_RESOLUTION, VOXEL_RESOLUTION, 1)),
     tf.keras.layers.BatchNormalization(),
     tf.keras.layers.MaxPooling3D(pool_size=(2, 2, 2)),
 
-    # Bloco convolucional 2
+    # convolutional block 2
     tf.keras.layers.Conv3D(64, (3, 3, 3), activation='relu'),
     tf.keras.layers.BatchNormalization(),
     tf.keras.layers.MaxPooling3D(pool_size=(2, 2, 2)),
 
-    # Bloco convolucional 3
+    # convolutional block 3
     tf.keras.layers.Conv3D(128, (3, 3, 3), activation='relu'),
     tf.keras.layers.BatchNormalization(),
     tf.keras.layers.MaxPooling3D(pool_size=(2, 2, 2)),
 
-    # Classificador
+    # classification head
     tf.keras.layers.Flatten(),
     tf.keras.layers.Dense(256, activation='relu'),
     tf.keras.layers.Dropout(0.5),
@@ -90,7 +90,7 @@ print(f"Accuracy: {test_acc:.4f}")
 report = classification_report(
     y_true, 
     y_pred_int, 
-    labels=range(NUM_CLASSES),  # forçar todas as 16 classes
+    labels=range(NUM_CLASSES), 
     target_names=le.classes_,
     zero_division=0  # evitar warnings se alguma classe não aparecer
 )

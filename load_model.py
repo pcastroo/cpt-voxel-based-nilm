@@ -12,12 +12,12 @@ from sklearn.preprocessing import LabelEncoder
  # hyperparameters
 BATCH_SIZE = 32
 EPOCHS = 20
-PATH = 'appliance_classifier_voxel_steady.keras'
+PATH = 'model_RES32.keras'
 NUM_CLASSES = 16
 
 # file paths
-x_path='X_steady.npy'
-y_path='y_steady.npy'
+x_path='X_RES32.npy'
+y_path='y_RES32.npy'
 
 # ---------- load model ----------
 model = tf.keras.models.load_model(PATH)
@@ -32,7 +32,7 @@ print(f"Total samples: {len(y)}")
 print(f"Number of classes: {len(unique_classes)}")
 
 # split data into train and test sets with stratification
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42, stratify=y,)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42, stratify=y)
     
 # transform labels to integers
 le = LabelEncoder()
@@ -67,4 +67,5 @@ plt.xlabel('Predicted')
 plt.ylabel('True')
 plt.title('Confusion Matrix')
 plt.tight_layout()
+plt.savefig('confusion_matrix_withoutblender.png', dpi=300, bbox_inches='tight')
 plt.show()

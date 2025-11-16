@@ -36,6 +36,11 @@ def process_file(file_path, metadata): # process a single file
 
     meta = metadata[file_id]
     label = meta["appliance"]["type"]
+    
+    # PULAR BLENDER - FORMA MAIS SIMPLES
+    if label == "Blender":
+        return None
+    
     sampling_frequency = int(meta["header"]["sampling_frequency"].replace("Hz", ""))
     f_mains = 60
 
@@ -61,12 +66,13 @@ def load_plaid(): # load whole PLAID dataset
             if f.endswith('.csv'):
                 file_list.append(os.path.join(root, f))
 
-    #file_list = file_list[:6]
-
     with ThreadPoolExecutor(max_workers=8) as executor: # parallel loading utilizing threads and 8 workers
         results = list(executor.map(lambda fp: process_file(fp, metadata), file_list))
 
-    print(f"Loaded {len(results)} files from PLAID dataset.")
+    # FILTRAR None (arquivos Blender pulados)
+    results = [data for data in results if data is not None]
+
+    print(f"Loaded {len(results)} files from PLAID dataset (Blender excluded).")
     print("------------------------------")
 
     PlaidData.check_underrepresented(results, min_samples=50)

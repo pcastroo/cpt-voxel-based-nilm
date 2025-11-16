@@ -260,7 +260,7 @@ plt.tight_layout()
 plt.show()
 
 # visualize dataset statistics
-fig = visualize_multiple_samples(X, y, indices=[0, 1, 2, 3, 4, 5])
+fig = visualize_multiple_samples(X, y, indices=[301, 500, 700])
 plt.tight_layout()
 plt.show() 
 
