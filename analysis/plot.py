@@ -6,24 +6,27 @@ from matplotlib.colors import LinearSegmentedColormap
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from data_processing.core import debug_load_data
-from loaders.plaid_loader import load_plaid
-from loaders.lit_loader import load_lit
-from loaders.whited_loader import load_whited
+from data_processing.process_data import process_data
 from data_processing.cpt_decomposition import CPT  
 
-dados = load_plaid()
-data = dados[2]  # Select the i-th file
+from loaders.whited_loader import get_all_whited_data
+from loaders.plaid_loader import get_all_plaid_data
 
-F_MAINS = 60 # mains frequency in Hz
-POINTS_PER_CYCLE = 500 # number of samples per cycle
+# file paths
+x_path = 'X.npy'
+y_path = 'y.npy'
+
+dados = get_all_whited_data() 
+data = dados[3]  # Select the i-th file
+
+dt = data.get_time_step()
+points_per_cycle = data.get_points_per_cycle() 
 DURATION = len(data.current_segment) / data.sampling_frequency  # duration in seconds
-DT = 1 / (F_MAINS * POINTS_PER_CYCLE) # time step
 
-cpt = CPT([data.voltage_segment], [data.current_segment])
+cpt = CPT(data)
 
-t_clean = np.arange(len(cpt.i_active)) * DT
-t = np.arange(len(data.current_segment)) * DT
+t_clean = np.arange(len(cpt.i_active)) * dt
+t = np.arange(len(data.current_segment)) * dt
 
 # PLOTS 2D
 def plot_2d(cpt, data):
@@ -67,8 +70,8 @@ def plot_3d(cpt):
 
     return fig, ax
 
-# LOAD DATA FOR VOXEL VISUALIZATION AND STATISTICS
-X, y = debug_load_data()
+""" # LOAD DATA FOR VOXEL VISUALIZATION AND STATISTICS
+X, y = np.load(x_path), np.load(y_path)
 
 def visualize_voxel_3d(voxel_grid):
     # Remove channel dimension if present
@@ -238,6 +241,7 @@ def compare_voxel_statistics(voxel_dataset):
     
     
     print("=" * 60)
+"""
 
 # visualize plot 2d
 fig, ax = plot_2d(cpt, data)
@@ -249,6 +253,7 @@ fig, ax = plot_3d(cpt)
 plt.tight_layout()
 plt.show()  
 
+""" 
 # visualize voxel 3d 
 fig, ax = visualize_voxel_3d(X[2])
 plt.tight_layout()
@@ -264,4 +269,4 @@ fig = visualize_multiple_samples(X, y, indices=[301, 500, 700])
 plt.tight_layout()
 plt.show() 
 
-compare_voxel_statistics(X)
+compare_voxel_statistics(X)  """

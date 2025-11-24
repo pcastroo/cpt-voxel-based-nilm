@@ -6,26 +6,21 @@ from sklearn.metrics import classification_report, confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from data_processing.core import process_data
-
 # constants
 BATCH_SIZE = 32
 EPOCHS = 20
-PATH = 'model_RES32.keras'
+PATH = 'model_version_3.keras'
 NUM_CLASSES = 16
 VOXEL_RESOLUTION = 32 
 
 # file paths
-x_path = 'X_RES32.npy'
-y_path = 'y_RES32.npy'
+x_path = 'X.npy'
+y_path = 'y.npy'
 
 # ---------- preprocess data ----------
-if x_path == '' and y_path == '':
-    X, y = process_data('X_RES32_2.npy', 'y_RES32_2.npy')
-else:
-    X, y = np.load(x_path), np.load(y_path)
+X, y = np.load(x_path), np.load(y_path)
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42, stratify=y) # split data into train and test 
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42, stratify=y) # split data into train and test 
     
 # transform labels to integers
 le = LabelEncoder()
@@ -41,8 +36,8 @@ y_true_onehot = tf.keras.utils.to_categorical(y_true, NUM_CLASSES)
 model = tf.keras.models.Sequential([
     # convolutional block 1
     tf.keras.layers.Conv3D(32, (3, 3, 3), activation='relu', input_shape=(VOXEL_RESOLUTION, VOXEL_RESOLUTION, VOXEL_RESOLUTION, 1)),
-    tf.keras.layers.BatchNormalization(),
-    tf.keras.layers.MaxPooling3D(pool_size=(2, 2, 2)),
+    tf.keras.layers.BatchNormalization(), # normalize activations
+    tf.keras.layers.MaxPooling3D(pool_size=(2, 2, 2)), # reduce spatial dimensions
 
     # convolutional block 2
     tf.keras.layers.Conv3D(64, (3, 3, 3), activation='relu'),
@@ -53,9 +48,10 @@ model = tf.keras.models.Sequential([
     tf.keras.layers.Conv3D(128, (3, 3, 3), activation='relu'),
     tf.keras.layers.BatchNormalization(),
     tf.keras.layers.MaxPooling3D(pool_size=(2, 2, 2)),
+    
+    tf.keras.layers.Flatten(), # flatten(): convert 3D feature maps to 1D feature vectors
 
     # classification head
-    tf.keras.layers.Flatten(),
     tf.keras.layers.Dense(256, activation='relu'),
     tf.keras.layers.Dropout(0.5),
     tf.keras.layers.Dense(NUM_CLASSES, activation='softmax') # exit layer with 16 classes

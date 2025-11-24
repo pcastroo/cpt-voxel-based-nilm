@@ -25,14 +25,11 @@ class NormalizedCurrents(PlaidData):
         # truncate to exact multiple
         truncated_length = num_segments * window_size
         
-        print(f"Cropping signal: {len(self.i_active)} samples -> {num_segments} segments of {window_size} samples")
-        
         self.i_active = self.i_active[:truncated_length].reshape((num_segments, window_size))
         self.i_reactive = self.i_reactive[:truncated_length].reshape((num_segments, window_size))
         self.i_void = self.i_void[:truncated_length].reshape((num_segments, window_size))
 
 def normalize(cpt, data): # normalize current components
-    print("Normalizing current components...")
     i_a = np.asarray(cpt.i_active)
     i_r = np.asarray(cpt.i_reactive)
     i_v = np.asarray(cpt.i_void)
@@ -64,8 +61,6 @@ def normalize(cpt, data): # normalize current components
     norm_ia = 2 * (i_a - ia_min) / (ia_max - ia_min) - 1
     norm_ir = 2 * (i_r - ir_min) / (ir_max - ir_min) - 1
     norm_iv = 2 * (i_v - iv_min) / (iv_max - iv_min) - 1
-
-    print("Normalization completed.")
 
     norm_result = NormalizedCurrents(
         data.current_segment,
@@ -120,8 +115,6 @@ def voxelize_3d_trajectory(ia, ir, iv): # voxelization of 3D trajectory
     return voxel_grid
 
 def build_voxel_dataset(normalized_currents_list): # build voxel dataset from list of NormalizedCurrents
-    print(f"Building voxel dataset with resolution {RESOLUTION}^3...")
-    
     voxel_tensors = []
     
     for idx, norm in enumerate(normalized_currents_list):
@@ -135,8 +128,5 @@ def build_voxel_dataset(normalized_currents_list): # build voxel dataset from li
         voxel_grid = np.expand_dims(voxel_grid, axis=-1)
         voxel_tensors.append(voxel_grid)
     
-    results = np.asarray(voxel_tensors, dtype=np.float32)
-    print(f"Voxel dataset built with shape: {results.shape}")
-    print("------------------------------")
-    
+    results = np.asarray(voxel_tensors, dtype=np.float32) 
     return results

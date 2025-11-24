@@ -3,40 +3,34 @@ import soundfile as sf
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 
-class WhitedData:
-    def __init__(self, current_segment, voltage_segment,
-                 appliance_type, sampling_frequency, duration):
-        self.current_segment = current_segment
-        self.voltage_segment = voltage_segment
-        self.appliance_type = appliance_type
-        self.sampling_frequency = sampling_frequency
-        self.duration = duration
+from data_processing.Data import Data
+
+class WhitedData(Data):
+    def __init__(self, current_segment, voltage_segment, label, sampling_frequency, f_mains):
+        super().__init__(current_segment, voltage_segment, label, sampling_frequency, f_mains)
+        
+        self.is_underrepresented = False  # flag for underrepresented classes
 
 def parse_whited_filename(filename):
-    """
-    Parse WHITED filename format to extract appliance type
-    Exemplo: GuitarAmp_Marshall8240_R3_MK2_20151115133402.flac
-    """
+    """Extract appliance type from WHITED filename"""
     name_without_ext = os.path.splitext(filename)[0]
     parts = name_without_ext.split('_')
-
+    
     # First part is always the appliance type
     appliance_type = parts[0] if len(parts) > 0 else "Unknown"
     return appliance_type
 
-def process_file(file_path):
+def process_file(file_path):  # process a single file
     try:
         # Read FLAC file
         data, samplerate = sf.read(file_path)
         
         # WHITED has 2 channels: voltage and current
-        # Check if file has 2 channels
         if len(data.shape) > 1 and data.shape[1] == 2:
             voltage_segment = data[:, 0]
             current_segment = data[:, 1]
         else:
             # If mono or different structure, handle accordingly
-            print(f"Warning: {file_path} has unexpected channel structure")
             if len(data.shape) == 1:
                 voltage_segment = data
                 current_segment = np.zeros_like(data)
@@ -44,73 +38,50 @@ def process_file(file_path):
                 voltage_segment = data[:, 0]
                 current_segment = data[:, 1] if data.shape[1] > 1 else np.zeros_like(voltage_segment)
         
-        # Parse filename for appliance type
+        # Parse filename for appliance type (label)
         filename = os.path.basename(file_path)
-        appliance_type = parse_whited_filename(filename)
+        label = parse_whited_filename(filename)
         
-        # Calculate duration
-        duration = len(voltage_segment) / samplerate
+        # WHITED usa 50Hz (rede europeia)
+        f_mains = 50
         
         return WhitedData(
             current_segment=current_segment,
             voltage_segment=voltage_segment,
-            appliance_type=appliance_type,
-            sampling_frequency=samplerate,
-            duration=duration
+            label=label,
+            sampling_frequency=int(samplerate),
+            f_mains=f_mains
         )
     
     except Exception as e:
         print(f"Error processing {file_path}: {str(e)}")
         return None
 
-def load_whited(folder_path='./datasets/WHITED', max_workers=8, appliance_type_filter=None):
+def load_whited():  # load whole WHITED dataset
     print("------------------------------")
     print("Initiating WHITED dataset loading...")
     
-    # Find all FLAC files
+    folder_path = './datasets/WHITED'
+    
     file_list = []
     
-    # Recursively find all FLAC files in the directory
-    for root, _, files in os.walk(folder_path):
+    for root, _, files in os.walk(folder_path):  # walk through dataset directory
         for f in files:
             if f.endswith('.flac'):
-                file_path = os.path.join(root, f)
-                
-                # Apply filter if specified
-                if appliance_type_filter is not None:
-                    appliance_type = parse_whited_filename(f)
-                    if appliance_type == appliance_type_filter:
-                        file_list.append(file_path)
-                else:
-                    file_list.append(file_path)
+                file_list.append(os.path.join(root, f))
     
-    print(f"Found {len(file_list)} FLAC files to process...")
+    # Limitar para testes (comentar para carregar tudo)
+    #file_list = file_list[:6]
     
-    # Uncomment to limit number of files for testing
-    file_list = file_list[:10]
+    with ThreadPoolExecutor(max_workers=8) as executor:  # parallel loading utilizing threads and 8 workers
+        results = list(executor.map(process_file, file_list))
     
-    # Process files in parallel
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        resultados = list(executor.map(process_file, file_list))
-    
-    # Filter out None results (failed processing)
-    resultados = [r for r in resultados if r is not None]
-    
-    print(f"Successfully loaded {len(resultados)} files from WHITED dataset.")
+    print(f"Loaded {len(results)} files from WHITED dataset.")
     print("------------------------------")
     
-    return resultados
-
-def get_all_data(folder_path='./datasets/WHITED'):
-    return load_whited(folder_path=folder_path, max_workers=8, appliance_type_filter=None)
-
-def get_appliance_types(folder_path='./datasets/WHITED'):
-    appliance_types = set()
+    WhitedData.check_underrepresented(results, min_samples=1)
     
-    for root, _, files in os.walk(folder_path):
-        for f in files:
-            if f.endswith('.flac'):
-                appliance_type = parse_whited_filename(f)
-                appliance_types.add(appliance_type)
-    
-    return sorted(list(appliance_types))
+    return results
+
+def get_all_whited_data():
+    return load_whited()

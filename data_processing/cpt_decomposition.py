@@ -1,182 +1,190 @@
 import math
 import numpy as np
 
-F_MAINS = 60 # mains frequency in Hz
-POINTS_PER_CYCLE = 500 # number of samples per cycle
-DT = 1 / (F_MAINS * POINTS_PER_CYCLE) # time step
-
 class CurrentDecomposition:
     def __init__(self, i_active, i_reactive, i_void):
         self.i_active = i_active
         self.i_reactive = i_reactive
         self.i_void = i_void
 
-# Simple Moving Average Filter
-class sMAF:
-    def __init__(self):
-        self.MAF_input = 0.0
-        self.MAF_KONTz = 0
-        self.vector_jm = [0.0] * POINTS_PER_CYCLE
-        self.MAF_summedz = 0.0
-        self.mean_out = 0.0
-        self.inicio = 0
+class MovingAverageFilter:
+    def __init__(self, window_size):
+        self.window_size = window_size
+        self.buffer = [0.0] * window_size
+        self.index = 0
+        self.sum = 0.0
+        self.mean = 0.0
+    
+    def update(self, value):
+        """Atualiza o filtro com novo valor"""
+        # Remove valor antigo da soma
+        self.sum -= self.buffer[self.index]
+        # Adiciona novo valor
+        self.buffer[self.index] = value
+        self.sum += value
+        # Avança índice circular
+        self.index = (self.index + 1) % self.window_size
+        # Calcula média
+        self.mean = self.sum / self.window_size
+        return self.mean
 
-# RMS calculation
-class RMS:
-    def __init__(self):
-        self.inicio = 0
-        self.NA = 0
-        self.temp = 0.0
-        self.jm = [0.0] * POINTS_PER_CYCLE
-        self.summed = 0.0
-        self.v_RMS = 0.0
+class RMSCalculator:
+    def __init__(self, window_size):
+        self.window_size = window_size
+        self.buffer = [0.0] * window_size
+        self.index = 0
+        self.sum_of_squares = 0.0
+        self.rms = 0.0
+    
+    def update(self, value):
+        """Atualiza RMS com novo valor"""
+        squared_value = value * value
+        # Remove valor antigo
+        self.sum_of_squares -= self.buffer[self.index]
+        # Adiciona novo valor
+        self.buffer[self.index] = squared_value
+        self.sum_of_squares += squared_value
+        # Avança índice
+        self.index = (self.index + 1) % self.window_size
+        # Calcula RMS
+        self.sum_of_squares = max(self.sum_of_squares, 0.0001)  # Evita divisão por zero
+        self.rms = math.sqrt(self.sum_of_squares / self.window_size)
+        return self.rms
 
-# Unbiased Integral
-class UI:
-    def __init__(self):
+class UnbiasedIntegrator:
+    def __init__(self, dt, window_size):
+        self.dt = dt
         self.integral = 0.0
-        self.integral_old = 0.0
-        self.out = 0.0
-        self.inicio = 0
+        self.previous_input = 0.0
+        self.maf = MovingAverageFilter(window_size)
+        self.output = 0.0
+    
+    def update(self, value):
+        """Atualiza integral com novo valor (regra do trapézio)"""
+        # Integração por trapézio
+        self.integral += (self.dt / 2) * (value + self.previous_input)
+        self.previous_input = value
+        # Remove offset médio
+        mean = self.maf.update(self.integral)
+        self.output = self.integral - mean
+        return self.output
 
-# Moving Average Filter function
-def maf(m_a_f, m_input, n_samples):
-    if m_a_f.inicio == 0:
-        m_a_f.MAF_KONTz = 0
-        m_a_f.vector_jm = [0.0] * n_samples
-        m_a_f.MAF_summedz = 0
-        m_a_f.mean_out = 0
-        m_a_f.inicio = 1
-
-    if m_a_f.MAF_KONTz == n_samples:
-        m_a_f.MAF_KONTz = 0
-
-    m_a_f.MAF_input = m_input
-    m_a_f.MAF_summedz += m_a_f.MAF_input - m_a_f.vector_jm[m_a_f.MAF_KONTz]
-    m_a_f.vector_jm[m_a_f.MAF_KONTz] = m_a_f.MAF_input
-    m_a_f.MAF_KONTz += 1
-    m_a_f.mean_out = m_a_f.MAF_summedz / n_samples
-
-# RMS calculation function
-def rms(r_m_s, RMS_input, n_samples):
-    if r_m_s.inicio == 0:
-        r_m_s.temp = 0
-        r_m_s.NA = 0
-        r_m_s.jm = [0.0] * n_samples
-        r_m_s.summed = 0
-        r_m_s.inicio = 1
-
-    r_m_s.temp = RMS_input
-    r_m_s.summed = r_m_s.summed + r_m_s.temp - r_m_s.jm[r_m_s.NA]
-    r_m_s.jm[r_m_s.NA] = r_m_s.temp
-    r_m_s.NA += 1
-
-    if r_m_s.NA >= n_samples:
-        r_m_s.NA = 0
-
-    if r_m_s.summed <= 0:
-        r_m_s.summed = 0.0001
-
-    r_m_s.v_RMS = math.sqrt(r_m_s.summed / n_samples)
-
-# Unbiased Integral function
-def ui(ui_obj, av, ui_input):
-    if ui_obj.inicio == 0:
-        ui_obj.integral = 0
-        ui_obj.integral_old = 0
-        ui_obj.out = 0
-        ui_obj.inicio = 1
-
-    ui_obj.integral += (DT / 2) * (ui_input + ui_obj.integral_old)
-    ui_obj.integral_old = ui_input
-    maf(av, ui_obj.integral, POINTS_PER_CYCLE)
-    ui_obj.out = ui_obj.integral - av.mean_out
-
-# CPT function for single-phase
-def CPT(Vs, Is): 
-    print("Initiating CPT decomposition...")
-    for x in range(0 , len(Vs[0])): # iterate over samples
-        u = Vs[0][x]
-        i = Is[0][x]
-
-        if x == 0:
-            v_u, v_i = [], [] # voltage and current vectors
-            v_ia, v_ir, v_iv = [], [], [] # active, reactive, and void current vectors
-
-            v_iv_rms = []  # List to hold RMS values for each window
-
-            ui_u = UI() # unbiased integral for voltage
-            mui_u = sMAF() # moving average filter for unbiased integral
-            UI_u = RMS() 
-            U, I = RMS(), RMS() # RMS for voltage and current
-            P = sMAF()
-            W = sMAF()
-
-        v_u.append(u)
-        v_i.append(i)
-
-        ui(ui_u, mui_u, u)
-        rms(U, u * u, POINTS_PER_CYCLE)
-        rms(I, i * i, POINTS_PER_CYCLE)
-        rms(UI_u, ui_u.out * ui_u.out, POINTS_PER_CYCLE)
-        maf(P, u * i, POINTS_PER_CYCLE)
-        P.mean_out = max(P.mean_out, 0.000001)
-        maf(W, ui_u.out * i, POINTS_PER_CYCLE)
-
-        # Active current
-        A = (P.mean_out / (U.v_RMS ** 2)) * u if U.v_RMS != 0 else 0
-        v_ia.append(A)
-
-        # Reactive current
-        R = (W.mean_out / (UI_u.v_RMS ** 2)) * ui_u.out if UI_u.v_RMS != 0 else 0
-        v_ir.append(R)
-
-        # Void current
-        V = i - A - R
-        v_iv.append(V)
-
-        i_void_rms = math.sqrt(max(I.v_RMS**2 - (P.mean_out / U.v_RMS)**2 - (W.mean_out / UI_u.v_RMS)**2, 0))
-        v_iv_rms.append(i_void_rms) 
-
-    def steady_removal(signal, threshold=0.01):
-        window_size = POINTS_PER_CYCLE
-
-        lenSignal = len(signal)
-        if lenSignal < 2 * window_size: # Not enough data to process
-            return signal
-
-        num_windows = lenSignal // window_size
-        if num_windows < 2: # Not enough windows to analyze
-            return signal
-
-        i_void_rms = np.array(v_iv_rms)
-
-        windows = []
+class CPT_Decomposition:
+    def __init__(self, data_obj):
+        self.data = data_obj
+        self.points_per_cycle = data_obj.get_points_per_cycle()
+        self.dt = data_obj.get_time_step()
         
-        for window_index in range(num_windows):
-            # Pegar os samples desta janela
-            start_idx = window_index * window_size
-            end_idx = (window_index + 1) * window_size
-            window_samples = i_void_rms[start_idx:end_idx]
-            
-            window_mean = np.mean(window_samples)
-            windows.append(window_mean)
-
-        diffs = np.abs(np.diff(windows))
-
-        if len(diffs) == 0 or max(diffs) < threshold: # No significant change detected
-            idx_cut = 2 * window_size
+        # Inicializar filtros e calculadores
+        self._init_filters()
+        
+        # Vetores de saída
+        self.i_active = []
+        self.i_reactive = []
+        self.i_void = []
+        self.i_void_rms_history = []
+    
+    def _init_filters(self):
+        self.voltage_integrator = UnbiasedIntegrator(self.dt, self.points_per_cycle)
+        self.voltage_rms = RMSCalculator(self.points_per_cycle)
+        self.current_rms = RMSCalculator(self.points_per_cycle)
+        self.integrated_voltage_rms = RMSCalculator(self.points_per_cycle)
+        self.active_power_filter = MovingAverageFilter(self.points_per_cycle)
+        self.reactive_power_filter = MovingAverageFilter(self.points_per_cycle)
+    
+    def process_sample(self, voltage, current):
+        """Processa uma amostra de tensão e corrente"""
+        # 1. Processar tensão
+        integrated_voltage = self.voltage_integrator.update(voltage)
+        v_rms = self.voltage_rms.update(voltage)
+        i_rms = self.current_rms.update(current)
+        ui_rms = self.integrated_voltage_rms.update(integrated_voltage)
+        
+        # 2. Calcular potências
+        active_power = self.active_power_filter.update(voltage * current)
+        active_power = max(active_power, 0.000001)  # Evita divisão por zero
+        
+        reactive_power = self.reactive_power_filter.update(integrated_voltage * current)
+        
+        # 3. Calcular componentes de corrente
+        # Corrente ativa
+        i_a = (active_power / (v_rms ** 2)) * voltage if v_rms != 0 else 0.0
+        
+        # Corrente reativa
+        i_r = (reactive_power / (ui_rms ** 2)) * integrated_voltage if ui_rms != 0 else 0.0
+        
+        # Corrente void (resíduo)
+        i_v = current - i_a - i_r
+        
+        # Calcular RMS da corrente void
+        term1 = (active_power / v_rms) ** 2 if v_rms != 0 else 0
+        term2 = (reactive_power / ui_rms) ** 2 if ui_rms != 0 else 0
+        i_void_rms = math.sqrt(max(i_rms ** 2 - term1 - term2, 0))
+        
+        # Armazenar resultados
+        self.i_active.append(i_a)
+        self.i_reactive.append(i_r)
+        self.i_void.append(i_v)
+        self.i_void_rms_history.append(i_void_rms) # for transient removal
+    
+    def decompose(self):
+        """Executa decomposição CPT completa"""
+        voltage_signal = self.data.voltage_segment
+        current_signal = self.data.current_segment
+        
+        # Processar todas as amostras
+        for v, i in zip(voltage_signal, current_signal):
+            self.process_sample(v, i)
+        
+        # Converter para arrays numpy
+        i_active = np.array(self.i_active)
+        i_reactive = np.array(self.i_reactive)
+        i_void = np.array(self.i_void)
+        
+        # Remover estado transitório
+        i_active = self._remove_transient(i_active)
+        i_reactive = self._remove_transient(i_reactive)
+        i_void = self._remove_transient(i_void)
+        
+        return CurrentDecomposition(i_active, i_reactive, i_void)
+    
+    def _remove_transient(self, signal, threshold=0.01):
+        """Remove estado transitório do sinal baseado no RMS da corrente void"""
+        window_size = self.points_per_cycle
+        signal_length = len(signal)
+        
+        if signal_length < 2 * window_size: 
+            return signal
+        
+        num_windows = signal_length // window_size
+        if num_windows < 2:
+            return signal
+        
+        # Calcular média de cada janela
+        i_void_rms = np.array(self.i_void_rms_history)
+        window_means = []
+        
+        for window_idx in range(num_windows):
+            start = window_idx * window_size
+            end = (window_idx + 1) * window_size
+            window_mean = np.mean(i_void_rms[start:end])
+            window_means.append(window_mean)
+        
+        # Detectar mudança significativa entre janelas
+        diffs = np.abs(np.diff(window_means))
+        
+        if len(diffs) == 0 or max(diffs) < threshold:
+            # Sem mudança significativa, remover primeiros 2 ciclos
+            cut_index = 4 * window_size
         else:
-            idx_cut = 2 * window_size * (1 + np.argmax(diffs))
-
-        if idx_cut >= lenSignal: # If cut index exceeds signal length, return original signal
+            # Cortar após maior mudança detectada
+            cut_index = 3 * window_size * (1 + np.argmax(diffs))
+        
+        if cut_index >= signal_length:
             return signal
         
-        return signal[idx_cut:]
-        
-    i_active = steady_removal(np.array(v_ia))
-    i_reactive = steady_removal(np.array(v_ir))
-    i_void = steady_removal(np.array(v_iv))
+        return signal[cut_index:]
 
-    print("Decomposition CPT completed.")
-    return CurrentDecomposition(i_active, i_reactive, i_void)
+def CPT(data_obj):
+    processor = CPT_Decomposition(data_obj)
+    return processor.decompose()
