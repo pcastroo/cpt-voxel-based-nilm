@@ -5,6 +5,7 @@ import numpy as np
 
 from data_processing.Data import Data
 
+# PLAID Data class: inherits from Data
 class PlaidData(Data):
     def __init__(self, current_segment, voltage_segment, label, sampling_frequency, f_mains):
         super().__init__(current_segment, voltage_segment, label, sampling_frequency, f_mains)
@@ -40,7 +41,7 @@ def load_plaid(): # load whole PLAID dataset
             if f.endswith('.csv'):
                 file_list.append(os.path.join(root, f))
 
-    file_list = file_list[:6]
+    #file_list = file_list[:6]
 
     with ThreadPoolExecutor(max_workers=8) as executor: # parallel loading utilizing threads and 8 workers
         results = list(executor.map(lambda fp: process_file(fp, metadata), file_list))
@@ -52,5 +53,6 @@ def load_plaid(): # load whole PLAID dataset
 
     return results
 
+# function to get all PLAID data, used in process_data.py
 def get_all_plaid_data():
     return load_plaid()

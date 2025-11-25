@@ -11,16 +11,21 @@ PATH = 'model.keras'
 NUM_CLASSES = 16
 
 # file paths
-x_path='X.npy'
-y_path='y.npy'
+x_path='X_PLAID.npy'
+y_path='y_PLAID.npy'
 
 # ---------- load model ----------
 model = tf.keras.models.load_model(PATH)
 
 X, y = np.load(x_path), np.load(y_path)
 
+print("Classes found:", np.unique(y))
+unique_classes, class_counts = np.unique(y, return_counts=True)
+for cls, count in zip(unique_classes, class_counts):
+    print(f"Class: {cls}, Count: {count}")  
+
 # split data into train and test sets with stratification
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42, stratify=y)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42, stratify=y)
     
 # transform labels to integers
 le = LabelEncoder()

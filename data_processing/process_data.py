@@ -117,7 +117,7 @@ def process_data(x_path, y_path, save=False, dataset='whited'):
 
 if __name__ == "__main__":
     # Processar PLAID
-    # X, y = process_data('X_plaid.npy', 'y_plaid.npy', save=False, dataset='plaid')
+    X, y = process_data('X_plaid.npy', 'y_plaid.npy', save=True, dataset='plaid')
     
     # Processar WHITED
-    X, y = process_data('X_whited.npy', 'y_whited.npy', save=True, dataset='whited')
+    #X, y = process_data('X_whited.npy', 'y_whited.npy', save=True, dataset='whited'),

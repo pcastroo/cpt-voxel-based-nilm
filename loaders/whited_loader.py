@@ -8,8 +8,6 @@ from data_processing.Data import Data
 class WhitedData(Data):
     def __init__(self, current_segment, voltage_segment, label, sampling_frequency, f_mains):
         super().__init__(current_segment, voltage_segment, label, sampling_frequency, f_mains)
-        
-        self.is_underrepresented = False  # flag for underrepresented classes
 
 def parse_whited_filename(filename):
     """Extract appliance type from WHITED filename"""
@@ -70,7 +68,6 @@ def load_whited():  # load whole WHITED dataset
             if f.endswith('.flac'):
                 file_list.append(os.path.join(root, f))
     
-    # Limitar para testes (comentar para carregar tudo)
     #file_list = file_list[:6]
     
     with ThreadPoolExecutor(max_workers=8) as executor:  # parallel loading utilizing threads and 8 workers
@@ -83,5 +80,6 @@ def load_whited():  # load whole WHITED dataset
     
     return results
 
+# function to get all WHITED data, used in process_data.py
 def get_all_whited_data():
     return load_whited()

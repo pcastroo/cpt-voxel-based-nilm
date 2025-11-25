@@ -1,5 +1,3 @@
-import numpy as np
-
 class Data():
     def __init__(self, current_segment, voltage_segment, label, sampling_frequency, f_mains):
         self.current_segment = current_segment
@@ -12,6 +10,8 @@ class Data():
 
     @staticmethod
     def check_underrepresented(data_list, min_samples=50):  # check which classes are underrepresented
+        import numpy as np
+        
         all_labels = [data.label for data in data_list]
         unique_classes, class_counts = np.unique(all_labels, return_counts=True)
         
