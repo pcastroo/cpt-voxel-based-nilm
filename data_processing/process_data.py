@@ -117,7 +117,17 @@ def process_data(x_path, y_path, save=False, dataset='whited'):
 
 if __name__ == "__main__":
     # Processar PLAID
-    X, y = process_data('X_plaid.npy', 'y_plaid.npy', save=True, dataset='plaid')
+    #X, y = process_data('X_plaid.npy', 'y_plaid.npy', save=True, dataset='plaid')
     
     # Processar WHITED
-    #X, y = process_data('X_whited.npy', 'y_whited.npy', save=True, dataset='whited'),
+    #X, y = process_data('X_whited.npy', 'y_whited.npy', save=True, dataset='whited')
+
+    # concatenate both datasets
+    X_whited, y_whited = process_data('X_whited.npy', 'y_whited.npy', save=False, dataset='whited')
+    X_plaid, y_plaid = process_data('X_plaid.npy', 'y_plaid.npy', save=False, dataset='plaid')
+
+    X_combined = np.concatenate((X_whited, X_plaid), axis=0)
+    y_combined = np.concatenate((y_whited, y_plaid), axis=0)
+
+    np.save('X_plaid_whited.npy', X_combined)
+    np.save('y_plaid_whited.npy', y_combined)

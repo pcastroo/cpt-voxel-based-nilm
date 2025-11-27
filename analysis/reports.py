@@ -11,12 +11,12 @@ from sklearn.manifold import TSNE
  # hyperparameters
 BATCH_SIZE = 32
 EPOCHS = 20
-PATH = 'model_tsne.keras'
-NUM_CLASSES = 16
+PATH = './models/model_plaid.keras'
+NUM_CLASSES = 15
 
 # file paths
-x_path='X.npy'
-y_path='y.npy'
+x_path = './preprocessed_data/X_plaid.npy'
+y_path = './preprocessed_data/y_plaid.npy'
 
 # ---------- load model ----------
 model = tf.keras.models.load_model(PATH)

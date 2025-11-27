@@ -6,19 +6,19 @@ from sklearn.metrics import classification_report, confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# constants
-BATCH_SIZE = 32
-EPOCHS = 50 
-PATH = 'modely2.keras'
-NUM_CLASSES = 15  
-VOXEL_RESOLUTION = 32 
-
 # file paths
-x_path = 'X_PLAID.npy'
-y_path = 'y_PLAID.npy'
+x_path = './preprocessed_data/X_plaid_whited.npy'
+y_path = './preprocessed_data/y_plaid_whited.npy'
 
 # ---------- preprocess data ----------
 X, y = np.load(x_path), np.load(y_path)
+
+# hyperparameters
+BATCH_SIZE = 32
+EPOCHS = 50 
+MODEL_PATH = 'model_plaid_whited.keras'
+VOXEL_RESOLUTION = 32 
+NUM_CLASSES = len(np.unique(y))
 
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, 
@@ -58,7 +58,7 @@ model = tf.keras.models.Sequential([
 
     # classification head
     tf.keras.layers.Dense(256, activation='relu'),
-    tf.keras.layers.Dropout(0.6),  # Aumentado de 0.5 para 0.6
+    tf.keras.layers.Dropout(0.6),  
     tf.keras.layers.Dense(NUM_CLASSES, activation='softmax')
 ])
 
@@ -91,10 +91,10 @@ history = model.fit(
     epochs=EPOCHS,
     batch_size=BATCH_SIZE,
     shuffle=True,
-    callbacks=[early_stop, reduce_lr]  # Adiciona callbacks
+    callbacks=[early_stop, reduce_lr] 
 )
 
-model.save(PATH)
+model.save(MODEL_PATH)
 
 # ---------- reports and evaluation ----------
 y_pred_prob = model.predict(X_test)
