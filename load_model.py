@@ -17,6 +17,11 @@ EPOCHS = 20
 PATH = 'model.keras'
 NUM_CLASSES = len(np.unique(y))
 
+print("Classes found:", np.unique(y))
+unique_classes, class_counts = np.unique(y, return_counts=True)
+for cls, count in zip(unique_classes, class_counts):
+    print(f"Class: {cls}, Count: {count}")  
+
 model = tf.keras.models.load_model(PATH)
 
 # split data into train and test sets with stratification

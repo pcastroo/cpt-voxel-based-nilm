@@ -38,6 +38,8 @@ y_true_onehot = tf.keras.utils.to_categorical(y_true, NUM_CLASSES)
 
 # ---------- build model ----------
 model = tf.keras.models.Sequential([
+    #tf.keras.Input(shape=(32, 32, 32, 1)),
+
     # convolutional block 1
     tf.keras.layers.Conv3D(32, (3, 3, 3), activation='relu', 
                            input_shape=(VOXEL_RESOLUTION, VOXEL_RESOLUTION, VOXEL_RESOLUTION, 1)),

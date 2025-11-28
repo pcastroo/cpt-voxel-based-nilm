@@ -12,7 +12,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.manifold import TSNE
 
 # file paths
-x_path = './preprocessed_data/X_plaid.npy'
+x_path = './preprocessed_data/X_plaid_whited.npy'
 y_path = './preprocessed_data/y_plaid_whited.npy'
 
 X, y = np.load(x_path), np.load(y_path)
@@ -47,51 +47,77 @@ y_train_onehot = tf.keras.utils.to_categorical(y_train_int, NUM_CLASSES)
 y_true_onehot = tf.keras.utils.to_categorical(y_true, NUM_CLASSES)
 
 # ---------------- extract embeddings ----------------
-embedding_layer = model.layers[-2] 
-embedding_model = tf.keras.Model(inputs=model.inputs, outputs=embedding_layer.output)
+embedding_model = tf.keras.Model(
+    inputs=model.inputs,
+    outputs=model.layers[-2].output
+)
 
-embeddings = embedding_model.predict(X_test, batch_size=32, verbose=1)
+emb_train = embedding_model.predict(X_train, batch_size=32, verbose=1)
+emb_test  = embedding_model.predict(X_test,  batch_size=32, verbose=1)
 
-# ---------------- apply t-sne ----------------
-tsne = TSNE(n_components=2, perplexity=30, random_state=42, learning_rate='auto', init='pca')
-X_embedded = tsne.fit_transform(embeddings)
+# ---------------- apply t-SNE ----------------
+# t-SNE is non-parametric; train/test must be combined so the 2D space is consistent.
+emb_all = np.concatenate([emb_train, emb_test], axis=0) # concatenate train + test
+
+tsne = TSNE(
+    n_components=2,
+    perplexity=30,
+    random_state=42,
+    learning_rate='auto',
+    init='pca'
+)
+
+all_2d = tsne.fit_transform(emb_all)
+
+# split again
+train_2d = all_2d[:len(emb_train)]
+test_2d  = all_2d[len(emb_train):]
+
+# ---------------- classifier ----------------
+clf = tf.keras.Sequential([
+    tf.keras.layers.Input(shape=(2,)),
+    tf.keras.layers.Dense(NUM_CLASSES, activation='softmax')
+])
+
+clf.compile(
+    optimizer='adam',
+    loss='sparse_categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+clf.fit(
+    train_2d, y_train_int,
+    epochs=30,
+    validation_data=(test_2d, y_true),  
+    verbose=1
+)
+
+clf.save('./models/tsne_model.keras')
 
 # ---------- reports and evaluation ----------
-# make predictions
-y_pred_prob = model.predict(X_test)
+y_pred_prob = clf.predict(test_2d)
 y_pred_int = np.argmax(y_pred_prob, axis=1)
 
-# geral accuracy
-test_loss, test_acc = model.evaluate(X_test, y_true_onehot, verbose=0)
-print(f"Accuracy: {test_acc:.4f}")
+test_loss, test_acc = clf.evaluate(test_2d, y_true, verbose=0)
+print(f"\nAccuracy: {test_acc:.4f}")
 
-# classification report
-report = classification_report(y_true, y_pred_int, target_names=le.classes_, zero_division=0)
-print("Classification Report:")
+report = classification_report(
+    y_true, 
+    y_pred_int, 
+    labels=range(NUM_CLASSES), 
+    target_names=le.classes_,
+    zero_division=0
+)
+print("\nClassification Report:")
 print(report) 
 
-# confusion matrix
 cm = confusion_matrix(y_true, y_pred_int)
 
-plt.figure(figsize=(10,8))
+plt.figure(figsize=(12,10))
 sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
             xticklabels=le.classes_, yticklabels=le.classes_)
 plt.xlabel('Predicted')
 plt.ylabel('True')
 plt.title('Confusion Matrix')
 plt.tight_layout()
-plt.savefig(f'confusion_matrix_{MODEL_PATH.split("/")[-1].split(".")[0]}.png', dpi=300, bbox_inches='tight')
-plt.show()
-
-# t-sne visualization
-plt.figure(figsize=(10, 8))
-palette = sns.color_palette("hsv", NUM_CLASSES)
-sns.scatterplot(
-    x=X_embedded[:, 0], y=X_embedded[:, 1],
-    hue=[le.classes_[i] for i in y_true],
-    palette=palette, legend='full', s=50, alpha=0.8
-)
-plt.title("t-SNE visualization of learned embeddings")
-plt.tight_layout()
-plt.savefig(f'tsne_visualization_{MODEL_PATH.split("/")[-1].split(".")[0]}.png', dpi=300, bbox_inches='tight')
 plt.show()
