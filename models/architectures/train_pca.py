@@ -7,23 +7,19 @@ from sklearn.metrics import classification_report, accuracy_score
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# ============================================
-# CONFIG
-# ============================================
+# ---------- load data ----------
 x_path = './preprocessed_data/X_plaid.npy'
 y_path = './preprocessed_data/y_plaid.npy'
+
+X, y = np.load(x_path), np.load(y_path)
+
+NUM_CLASSES = len(np.unique(y))
 
 BATCH_SIZE = 32
 EPOCHS = 50 
 MODEL_PATH = './models/model_plaid.keras'
 VOXEL_RESOLUTION = 32 
 PCA_COMPONENTS = 64
-
-# ============================================
-# LOAD DATA
-# ============================================
-X, y = np.load(x_path), np.load(y_path)
-NUM_CLASSES = len(np.unique(y))
 
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, 

@@ -1,10 +1,13 @@
 import numpy as np
+import seaborn as sns
 import tensorflow as tf
+import matplotlib.pyplot as plt
+
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import classification_report, confusion_matrix
-import matplotlib.pyplot as plt
-import seaborn as sns
+
+from models.architectures.FocalLoss import FocalLoss
 
 # ---------- load data ----------
 x_path = './preprocessed_data/X.npy'
@@ -14,7 +17,7 @@ X, y = np.load(x_path), np.load(y_path)
 
 BATCH_SIZE = 32
 EPOCHS = 50
-MODEL_PATH = 'model_plaid_whited.keras'
+MODEL_PATH = 'model_final.keras'
 VOXEL_RESOLUTION = 32
 NUM_CLASSES = len(np.unique(y))
 
@@ -85,19 +88,19 @@ def build_resnet3d(input_shape, num_classes):
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.ReLU()(x)
 
-    # BLOCK 1 (32 filters)
+    # first convolutional block (32 filters)
     x = residual_block_3d(x, 32, stride=1)
     x = residual_block_3d(x, 32, stride=1)
 
-    # BLOCK 2 (64 filters, downsample)
+    # second convolutional block (64 filters, downsample)
     x = residual_block_3d(x, 64, stride=2)
     x = residual_block_3d(x, 64, stride=1)
 
-    # BLOCK 3 (128 filters, downsample)
+    # third convolutional block (128 filters, downsample)
     x = residual_block_3d(x, 128, stride=2)
     x = residual_block_3d(x, 128, stride=1)
 
-    # BLOCK 4 (256 filters, downsample)
+    # fourth convolutional block (256 filters, downsample)
     x = residual_block_3d(x, 256, stride=2)
     x = residual_block_3d(x, 256, stride=1)
 
@@ -115,14 +118,14 @@ model = build_resnet3d(
 
 model.compile(
     optimizer='adam',
-    loss='categorical_crossentropy',
+    loss=FocalLoss(gamma=2.0, alpha=0.25), # antes era 'categorical_crossentropy'
     metrics=['accuracy']
 )
 
 # ---------- callbacks ----------
 early_stop = tf.keras.callbacks.EarlyStopping(
     monitor='val_loss',
-    patience=5,
+    patience=7, # 5 para 7
     restore_best_weights=True, 
     verbose=1
 )

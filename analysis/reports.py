@@ -1,30 +1,32 @@
-import numpy as np
 import os, sys
-import tensorflow as tf
+import numpy as np
 import seaborn as sns
+import tensorflow as tf
 import matplotlib.pyplot as plt
+
+from sklearn.manifold import TSNE
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix, classification_report
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix, classification_report
-from sklearn.preprocessing import LabelEncoder
-from sklearn.manifold import TSNE
+from models.architectures.FocalLoss import FocalLoss
 
-# file paths
-x_path = './preprocessed_data/X_plaid.npy'
-y_path = './preprocessed_data/y_plaid_whited.npy'
+# file paths, change as needed
+x_path = './preprocessed_data/X_PLAID-WHITED.npy'
+y_path = './preprocessed_data/y_PLAID-WHITED.npy'
 
 X, y = np.load(x_path), np.load(y_path)
 
 # ---------- load model ----------
 # hyperparameters
 BATCH_SIZE = 32
-EPOCHS = 20
-MODEL_PATH = './models/model_resnet3d.keras'
+EPOCHS = 50
+MODEL_PATH = './models/checkpoints/RESNET3D_PLAID-WHITED_FL.keras' # path to the trained model
 NUM_CLASSES = len(np.unique(y))
 
-model = tf.keras.models.load_model(MODEL_PATH)
+model = tf.keras.models.load_model(MODEL_PATH, custom_objects={'FocalLoss': FocalLoss})
 
 unique_classes, class_counts = np.unique(y, return_counts=True)
 for cls, count in zip(unique_classes, class_counts):
