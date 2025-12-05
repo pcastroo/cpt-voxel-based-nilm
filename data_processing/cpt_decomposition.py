@@ -75,10 +75,10 @@ class CPT_Decomposition:
         self.points_per_cycle = data_obj.get_points_per_cycle()
         self.dt = data_obj.get_time_step()
         
-        # Inicializar filtros e calculadores
+        # initialize filters and calculators
         self._init_filters()
         
-        # Vetores de saída
+        # output vectors
         self.i_active = []
         self.i_reactive = []
         self.i_void = []

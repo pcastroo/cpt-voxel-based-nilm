@@ -24,7 +24,7 @@ def process_file(file_path, metadata): # process a single file
 
     return PlaidData(current_segment, voltage_segment, label, sampling_frequency, f_mains)
 
-def load_plaid(): # load whole PLAID dataset
+def load_plaid(min_samples): # load whole PLAID dataset
     print("------------------------------")
     print("Initiating PLAID dataset loading...")
     
@@ -49,10 +49,10 @@ def load_plaid(): # load whole PLAID dataset
     print(f"Loaded {len(results)} files from PLAID dataset.")
     print("------------------------------")
 
-    PlaidData.check_underrepresented(results, min_samples=50)
+    PlaidData.check_underrepresented(results, min_samples)
 
     return results
 
 # function to get all PLAID data, used in process_data.py
-def get_all_plaid_data():
-    return load_plaid()
+def get_all_plaid_data(min_samples):
+    return load_plaid(min_samples)

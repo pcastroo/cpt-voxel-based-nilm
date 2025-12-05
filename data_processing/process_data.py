@@ -7,79 +7,71 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from loaders.plaid_loader import get_all_plaid_data
 from loaders.whited_loader import get_all_whited_data
 
-from data_processing.signal_preprocessing import normalize, build_voxel_dataset, NormalizedCurrents
+from data_processing.signal_preprocessing import normalize, build_voxel_dataset, Currents
 from data_processing.cpt_decomposition import CPT
 
+# minimum samples to not be considered underrepresented
+MIN_SAMPLES_PLAID = 1
+MIN_SAMPLES_WHITED = 1
+
 # process data from scratch, main function
-def process_data(x_path, y_path, save=False, dataset='whited'):
+def process_data(x_path, y_path, save=False, dataset=''):
     print(f"\n{'='*60}")
     print(f"PROCESSING {dataset.upper()} DATASET")
     print(f"{'='*60}\n")
     
-    # Carregar dataset apropriado
+    # load dataset 
     if dataset.lower() == 'plaid':
-        dados = get_all_plaid_data()
+        samples = get_all_plaid_data(min_samples=MIN_SAMPLES_PLAID)
     elif dataset.lower() == 'whited':
-        dados = get_all_whited_data()
-    else:
-        raise ValueError(f"Unknown dataset: {dataset}. Use 'plaid' or 'whited'")
+        samples = get_all_whited_data(min_samples=MIN_SAMPLES_WHITED)
 
     tensors, labels = [], []
-    total_samples = len(dados)
+    total_samples = len(samples)
     
     print(f"\nProcessing {total_samples} samples...")
     print(f"{'='*60}\n")
 
-    # Barra de progresso principal
+    # progress bar for overall processing
     with tqdm(total=total_samples, desc="Overall Progress", unit="sample", 
               bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]') as pbar:
         
-        for idx, data in enumerate(dados, 1):
-            # Atualizar descrição com classe atual
-            pbar.set_description(f"Processing [{data.label:30s}]")
+        for sample in samples:
+            pbar.set_description(f"Processing [{sample.label:30s}]")
             
-            # Decomposição CPT
-            cpt = CPT(data)
-            
-            # Normalização
-            norm = normalize(cpt, data)
+            cpt_component = CPT(sample)
+            normalized_sample = normalize(cpt_component, sample)
 
-            if norm.is_underrepresented:
-                tqdm.write(f"  ⚠️  [{norm.label}] Underrepresented - Cropping signal...")
-                norm.cropping_signal()
-                num_segments = norm.i_active.shape[0]
+            if normalized_sample.is_underrepresented:
+                tqdm.write(f"  ⚠️  [{normalized_sample.label}] Underrepresented - Cropping signal...")
+                normalized_sample.cropping_signal()
+                num_segments = normalized_sample.i_active.shape[0]
                 tqdm.write(f"      Generated {num_segments} segments")
 
-                # Sub-barra para segmentos (opcional)
+                # sub-bar for segments 
                 for segment_idx in range(num_segments):
-                    segment_norm = NormalizedCurrents(
-                        norm.current_segment,
-                        norm.voltage_segment,
-                        norm.label,
-                        norm.sampling_frequency,
-                        norm.f_mains,
-                        norm.i_active[segment_idx],
-                        norm.i_reactive[segment_idx],
-                        norm.i_void[segment_idx]
+                    segment_currents = Currents(
+                        normalized_sample.current_segment,
+                        normalized_sample.voltage_segment,
+                        normalized_sample.label,
+                        normalized_sample.sampling_frequency,
+                        normalized_sample.f_mains,
+                        normalized_sample.i_active[segment_idx],
+                        normalized_sample.i_reactive[segment_idx],
+                        normalized_sample.i_void[segment_idx]
                     )
 
-                    tensor = build_voxel_dataset([segment_norm])
+                    tensor = build_voxel_dataset([segment_currents])
                     tensors.append(tensor)
-                    labels.extend([norm.label] * tensor.shape[0])
+                    labels.extend([normalized_sample.label] * tensor.shape[0])
             else:
-                tensor = build_voxel_dataset([norm])
+                tensor = build_voxel_dataset([normalized_sample])
                 tensors.append(tensor)
-                labels.extend([norm.label] * tensor.shape[0])
+                labels.extend([normalized_sample.label] * tensor.shape[0])
             
-            # Atualizar barra de progresso
-            pbar.update(1)
-            
-            # Mostrar estatística intermediária a cada 10%
-            if idx % max(1, total_samples // 10) == 0:
-                current_samples = sum(t.shape[0] for t in tensors)
-                tqdm.write(f"  📊 Samples generated so far: {current_samples}")
+            pbar.update(1) # update overall progress bar
 
-    # Consolidar resultados
+    # consolidate all tensors and labels
     print(f"\n{'='*60}")
     print("CONSOLIDATING TENSORS...")
     print(f"{'='*60}")
@@ -92,11 +84,11 @@ def process_data(x_path, y_path, save=False, dataset='whited'):
     print(f"{'='*60}")
     unique_classes, class_counts = np.unique(y, return_counts=True)
     
-    for cls, count in zip(unique_classes, class_counts):
+    for class_name, count in zip(unique_classes, class_counts):
         percentage = (count / len(y)) * 100
         bar_length = int(percentage / 2)  # Escala para 50 caracteres
         bar = '█' * bar_length + '░' * (50 - bar_length)
-        print(f"{cls:30s}: {count:4d} samples {bar} {percentage:5.1f}%")
+        print(f"{class_name:30s}: {count:4d} samples {bar} {percentage:5.1f}%")
     
     print(f"\n{'─'*60}")
     print(f"Total samples: {len(y)}")
@@ -116,18 +108,37 @@ def process_data(x_path, y_path, save=False, dataset='whited'):
     return X, y 
 
 if __name__ == "__main__":
-    # Processar PLAID
-    #X, y = process_data('X_plaid.npy', 'y_plaid.npy', save=True, dataset='plaid')
-    
-    # Processar WHITED
-    #X, y = process_data('X_whited.npy', 'y_whited.npy', save=True, dataset='whited')
+    print("\n" + "="*60)
+    print("CHOOSE DATASET TO PROCESS:")
+    print("="*60)
 
-    # concatenate both datasets
-    X_whited, y_whited = process_data('X_whited.npy', 'y_whited.npy', save=False, dataset='whited')
-    X_plaid, y_plaid = process_data('X_plaid.npy', 'y_plaid.npy', save=False, dataset='plaid')
+    print("\n1 - PLAID")
+    print("2 - WHITED")
+    print("3 - PLAID + WHITED")
+    print("4 - Exit\n")
 
-    X_combined = np.concatenate((X_whited, X_plaid), axis=0)
-    y_combined = np.concatenate((y_whited, y_plaid), axis=0)
+    user_choice = input("Process which dataset?: ").strip()
 
-    np.save('X_plaid_whited.npy', X_combined)
-    np.save('y_plaid_whited.npy', y_combined)
+    match user_choice:
+        case '1' :
+            X, y = process_data(f'X_plaid.npy', f'y_plaid.npy', save=True, dataset='plaid')
+
+        case '2':
+            X, y = process_data(f'X_whited.npy', f'y_whited.npy', save=True, dataset='whited')
+
+        case '3' :
+            X_whited, y_whited = process_data('X_whited.npy', 'y_whited.npy', save=False, dataset='whited')
+            X_plaid, y_plaid = process_data('X_plaid.npy', 'y_plaid.npy', save=False, dataset='plaid')
+
+            X_combined = np.concatenate((X_whited, X_plaid), axis=0)
+            y_combined = np.concatenate((y_whited, y_plaid), axis=0)
+
+            np.save('X_plaid_whited.npy', X_combined)
+            np.save('y_plaid_whited.npy', y_combined) 
+
+        case '4':
+            print("Exiting...")
+            sys.exit(0)
+
+        case _:
+            print("Invalid choice.")   

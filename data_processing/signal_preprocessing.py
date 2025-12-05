@@ -8,7 +8,7 @@ RESOLUTION = 32
 DENSITY_MODE = True
 SMOOTH = True
 
-class NormalizedCurrents(PlaidData):
+class Currents(PlaidData):
     def __init__(self, current_segment, voltage_segment, label, sampling_frequency, f_mains,
                  i_active, i_reactive, i_void):
         super().__init__(current_segment, voltage_segment, label, sampling_frequency, f_mains)
@@ -17,17 +17,6 @@ class NormalizedCurrents(PlaidData):
         self.i_active = i_active
         self.i_reactive = i_reactive
         self.i_void = i_void
-    
-    def cropping_signal(self): # crop signal into segments based on mains frequency
-        window_size = int(self.sampling_frequency / self.f_mains) 
-        num_segments = len(self.i_active) // window_size
-
-        # truncate to exact multiple
-        truncated_length = num_segments * window_size
-        
-        self.i_active = self.i_active[:truncated_length].reshape((num_segments, window_size))
-        self.i_reactive = self.i_reactive[:truncated_length].reshape((num_segments, window_size))
-        self.i_void = self.i_void[:truncated_length].reshape((num_segments, window_size))
 
 def normalize(cpt, data): # normalize current components
     i_a = np.asarray(cpt.i_active)
@@ -43,7 +32,7 @@ def normalize(cpt, data): # normalize current components
 
     # handle case where all values are constant
     if ia_max == ia_min and ir_max == ir_min and iv_max == iv_min:
-        norm_result = NormalizedCurrents(
+        norm_result = Currents(
             data.current_segment,
             data.voltage_segment,
             data.label,
@@ -62,7 +51,7 @@ def normalize(cpt, data): # normalize current components
     norm_ir = 2 * (i_r - ir_min) / (ir_max - ir_min) - 1
     norm_iv = 2 * (i_v - iv_min) / (iv_max - iv_min) - 1
 
-    norm_result = NormalizedCurrents(
+    norm_result = Currents(
         data.current_segment,
         data.voltage_segment,
         data.label,
@@ -114,17 +103,17 @@ def voxelize_3d_trajectory(ia, ir, iv): # voxelization of 3D trajectory
     
     return voxel_grid
 
-def build_voxel_dataset(normalized_currents_list): # build voxel dataset from list of NormalizedCurrents
+def build_voxel_dataset(normalized_currents_list): # build voxel dataset from list of Currents
     voxel_tensors = []
     
     for idx, norm in enumerate(normalized_currents_list):
         if (idx + 1) % 100 == 0:
             print(f"Processed {idx + 1}/{len(normalized_currents_list)} samples...")
         
-        # Voxelize the 3D trajectory
+        # voxelize the 3D trajectory
         voxel_grid = voxelize_3d_trajectory(norm.i_active, norm.i_reactive, norm.i_void)
         
-        # Add channel dimension for CNN3D (batch, depth, height, width, channels)
+        # add channel dimension for CNN3D (batch, depth, height, width, channels)
         voxel_grid = np.expand_dims(voxel_grid, axis=-1)
         voxel_tensors.append(voxel_grid)
     

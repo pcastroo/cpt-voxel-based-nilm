@@ -82,7 +82,7 @@ plt.xlabel('Predicted')
 plt.ylabel('True')
 plt.title('Confusion Matrix')
 plt.tight_layout()
-plt.savefig(f'confusion_matrix_{MODEL_PATH.split("/")[-1].split(".")[0]}.png', dpi=300, bbox_inches='tight')
+#plt.savefig(f'confusion_matrix_{MODEL_PATH.split("/")[-1].split(".")[0]}.png', dpi=300, bbox_inches='tight')
 plt.show()
 
 # t-sne visualization
@@ -95,5 +95,5 @@ sns.scatterplot(
 )
 plt.title("t-SNE visualization of learned embeddings")
 plt.tight_layout()
-plt.savefig(f'tsne_visualization_{MODEL_PATH.split("/")[-1].split(".")[0]}.png', dpi=300, bbox_inches='tight')
+#plt.savefig(f'tsne_visualization_{MODEL_PATH.split("/")[-1].split(".")[0]}.png', dpi=300, bbox_inches='tight')
 plt.show()
