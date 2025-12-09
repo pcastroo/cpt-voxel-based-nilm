@@ -7,17 +7,17 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import classification_report, confusion_matrix
 
-from models.architectures.FocalLoss import FocalLoss
+from FocalLoss import FocalLoss
 
 # ---------- load data ----------
-x_path = './preprocessed_data/X.npy'
-y_path = './preprocessed_data/y.npy'
+x_path = './preprocessed_data/X_PLAID-WHITED_v2.npy'
+y_path = './preprocessed_data/y_PLAID-WHITED_v2.npy'
 
 X, y = np.load(x_path), np.load(y_path)
 
 BATCH_SIZE = 32
 EPOCHS = 50
-MODEL_PATH = 'model_final.keras'
+MODEL_PATH = 'RESNET3D_PLAID-WHITED_v2_FL.keras'
 VOXEL_RESOLUTION = 32
 NUM_CLASSES = len(np.unique(y))
 

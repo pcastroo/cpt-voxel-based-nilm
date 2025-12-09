@@ -5,10 +5,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 from data_processing.Data import Data
 
-class WhitedData(Data):
-    def __init__(self, current_segment, voltage_segment, label, sampling_frequency, f_mains):
-        super().__init__(current_segment, voltage_segment, label, sampling_frequency, f_mains)
-
 def parse_whited_filename(filename):
     """Extract appliance type from WHITED filename"""
     name_without_ext = os.path.splitext(filename)[0]
@@ -23,35 +19,26 @@ def parse_whited_filename(filename):
 
 def process_file(file_path):  # process a single file
     data, samplerate = sf.read(file_path)
+
+    f_mains = 50
         
-    # WHITED has 2 channels: voltage and current
-    if len(data.shape) > 1 and data.shape[1] == 2:
-        voltage_segment = data[:, 0]
-        current_segment = data[:, 1]
-    else:
-        # if mono or different structure, handle accordingly
-        if len(data.shape) == 1:
-            voltage_segment = data
-            current_segment = np.zeros_like(data)
-        else:
-            voltage_segment = data[:, 0]
-            current_segment = data[:, 1] if data.shape[1] > 1 else np.zeros_like(voltage_segment)
+    # WHITED has 2 channels: voltage (channel 0) and current (channel 1)
+    voltage_segment = data[:, 0]
+    current_segment = data[:, 1]
         
     # parse filename for appliance type (label)
     filename = os.path.basename(file_path)
     label = parse_whited_filename(filename)
         
-    f_mains = 50
-        
-    return WhitedData(
-        current_segment=current_segment,
+    return Data(
+        current_segment=current_segment, 
         voltage_segment=voltage_segment,
         label=label,
         sampling_frequency=int(samplerate),
         f_mains=f_mains
     )
 
-def load_whited(min_samples):  # load whole WHITED dataset
+def load_whited():  # load whole WHITED dataset
     print("------------------------------")
     print("Initiating WHITED dataset loading...")
     
@@ -72,10 +59,8 @@ def load_whited(min_samples):  # load whole WHITED dataset
     print(f"Loaded {len(results)} files from WHITED dataset.")
     print("------------------------------")
     
-    WhitedData.check_underrepresented(results, min_samples)
-    
     return results
 
 # function to get all WHITED data, used in process_data.py
-def get_all_whited_data(min_samples):
-    return load_whited(min_samples)
+def get_all_whited_data():
+    return load_whited()

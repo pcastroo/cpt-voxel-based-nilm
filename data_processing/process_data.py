@@ -4,17 +4,31 @@ from tqdm import tqdm
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from loaders.plaid_loader import get_all_plaid_data
-from loaders.whited_loader import get_all_whited_data
+from loaders.plaid_loader import load_plaid
+from loaders.whited_loader import load_whited
 
-from data_processing.signal_preprocessing import normalize, build_voxel_dataset, Currents
+from data_processing.signal_preprocessing import build_voxel_dataset
+from data_processing.normalization import normalize, data_augmentation, Currents
 from data_processing.cpt_decomposition import CPT
 
-# minimum samples to not be considered underrepresented
-MIN_SAMPLES_PLAID = 1
-MIN_SAMPLES_WHITED = 1
+def calculate_class_segments(samples):
+    """Pre-calculate how many segments each class should have"""
+    all_labels = [s.label for s in samples]
+    unique_classes, class_counts = np.unique(all_labels, return_counts=True)
+    
+    segments_per_class = {}
+    for cls, count in zip(unique_classes, class_counts):
+        if count <= 10:
+            segments_per_class[cls] = 16
+            print(f"  ⚠️  [{cls}] Severely Underrepresented ({count} samples) - Will create 16 segments")
+        elif 10 < count < 50:
+            segments_per_class[cls] = 4
+            print(f"  ⚠️  [{cls}] Underrepresented ({count} samples) - Will create 4 segments")
+        else:
+            segments_per_class[cls] = 1
+    
+    return segments_per_class
 
-# process data from scratch, main function
 def process_data(x_path, y_path, save=False, dataset=''):
     print(f"\n{'='*60}")
     print(f"PROCESSING {dataset.upper()} DATASET")
@@ -22,9 +36,14 @@ def process_data(x_path, y_path, save=False, dataset=''):
     
     # load dataset 
     if dataset.lower() == 'plaid':
-        samples = get_all_plaid_data(min_samples=MIN_SAMPLES_PLAID)
+        samples = load_plaid()
     elif dataset.lower() == 'whited':
-        samples = get_all_whited_data(min_samples=MIN_SAMPLES_WHITED)
+        samples = load_whited()
+
+    # PRE-CALCULATE segments per class
+    print(f"\nAnalyzing class distribution...")
+    segments_map = calculate_class_segments(samples)
+    print(f"{'='*60}\n")
 
     tensors, labels = [], []
     total_samples = len(samples)
@@ -32,7 +51,6 @@ def process_data(x_path, y_path, save=False, dataset=''):
     print(f"\nProcessing {total_samples} samples...")
     print(f"{'='*60}\n")
 
-    # progress bar for overall processing
     with tqdm(total=total_samples, desc="Overall Progress", unit="sample", 
               bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]') as pbar:
         
@@ -41,33 +59,15 @@ def process_data(x_path, y_path, save=False, dataset=''):
             
             cpt_component = CPT(sample)
             normalized_sample = normalize(cpt_component, sample)
+            
+            num_segments = segments_map[sample.label]
+            
+            data_augmented_samples = data_augmentation(normalized_sample, num_segments)   
 
-            if normalized_sample.is_underrepresented:
-                tqdm.write(f"  ⚠️  [{normalized_sample.label}] Underrepresented - Cropping signal...")
-                normalized_sample.cropping_signal()
-                num_segments = normalized_sample.i_active.shape[0]
-                tqdm.write(f"      Generated {num_segments} segments")
-
-                # sub-bar for segments 
-                for segment_idx in range(num_segments):
-                    segment_currents = Currents(
-                        normalized_sample.current_segment,
-                        normalized_sample.voltage_segment,
-                        normalized_sample.label,
-                        normalized_sample.sampling_frequency,
-                        normalized_sample.f_mains,
-                        normalized_sample.i_active[segment_idx],
-                        normalized_sample.i_reactive[segment_idx],
-                        normalized_sample.i_void[segment_idx]
-                    )
-
-                    tensor = build_voxel_dataset([segment_currents])
-                    tensors.append(tensor)
-                    labels.extend([normalized_sample.label] * tensor.shape[0])
-            else:
-                tensor = build_voxel_dataset([normalized_sample])
+            for augmented_sample in data_augmented_samples:
+                tensor = build_voxel_dataset(augmented_sample)
                 tensors.append(tensor)
-                labels.extend([normalized_sample.label] * tensor.shape[0])
+                labels.append(augmented_sample.label)
             
             pbar.update(1) # update overall progress bar
 
