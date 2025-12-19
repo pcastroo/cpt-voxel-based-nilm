@@ -1,13 +1,9 @@
 import numpy as np
+import pandas as pd
 import tensorflow as tf
-import seaborn as sns
-import matplotlib.pyplot as plt
 
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.preprocessing import LabelEncoder
-from sklearn.manifold import TSNE
-
 from models.architectures.FocalLoss import FocalLoss
 
 # file paths
@@ -32,115 +28,184 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_
 # transform labels to integers
 le = LabelEncoder()
 y_train_int = le.fit_transform(y_train)
-y_true = le.transform(y_test)
+y_test_int = le.transform(y_test)
 
 # convert labels to categorical (one-hot encoding)
 y_train_onehot = tf.keras.utils.to_categorical(y_train_int, NUM_CLASSES)
-y_true_onehot = tf.keras.utils.to_categorical(y_true, NUM_CLASSES)
+y_true_onehot = tf.keras.utils.to_categorical(y_test_int, NUM_CLASSES)
 
-# ---------------- extract embeddings ----------------
+# --------- embedding extractor ----------
 embedding_model = tf.keras.Model(
     inputs=model.inputs,
     outputs=model.layers[-2].output
 )
 
-emb_train = embedding_model.predict(X_train, batch_size=32, verbose=1)
-emb_test  = embedding_model.predict(X_test,  batch_size=32, verbose=1)
+X_train_emb = embedding_model.predict(X_train, verbose=0)
+X_test_emb  = embedding_model.predict(X_test,  verbose=0)
 
-print(f"Embeddings shape: {emb_train.shape}") 
+# --------- normalization ----------
+from sklearn.preprocessing import StandardScaler
 
-# ---------------- classifier ----------------
-from sklearn.ensemble import RandomForestClassifier
+scaler = StandardScaler()
+X_train_emb = scaler.fit_transform(X_train_emb)
+X_test_emb  = scaler.transform(X_test_emb)
+
+# --------------- classifier function ---------------
+from sklearn.metrics import accuracy_score
+
+def run_classifier(Xtr, Xte, ytr, yte, clf):
+    clf.fit(Xtr, ytr)
+    y_pred = clf.predict(Xte)
+    return accuracy_score(yte, y_pred)
+
+# --------------- baseline (without reduction) ---------------
 from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.linear_model import LogisticRegression
-from xgboost import XGBClassifier
-from sklearn.metrics import accuracy_score, classification_report
 
-def evaluate_classifiers(train_reduced, test_reduced, y_train_int, y_true, dims):
-    print("\n" + "="*60)
-    print(f"TESTANDO CLASSIFICADORES NO ESPAÇO t-SNE {dims}D")
-    print("="*60)
+results = []
 
-    # 1. Random Forest
-    print("\n[1/5] Random Forest...")
-    rf = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)
-    rf.fit(train_reduced, y_train_int)
-    acc_rf = rf.score(test_reduced, y_true)
-    print(f"  Acurácia: {acc_rf*100:.2f}%")
+# SVM baseline
+svm = SVC(kernel="rbf", C=10, gamma="scale")
+acc = run_classifier(X_train_emb, X_test_emb, y_train_int, y_test_int, svm)
 
-    # 2. SVM (RBF)
-    print("\n[2/5] SVM (RBF kernel)...")
-    svm = SVC(kernel='rbf', random_state=42)
-    svm.fit(train_reduced, y_train_int)
-    acc_svm = svm.score(test_reduced, y_true)
-    print(f"  Acurácia: {acc_svm*100:.2f}%")
+results.append({
+    "Reduction": "None",
+    "Dim": X_train_emb.shape[1],
+    "Classifier": "SVM",
+    "Accuracy": acc
+})
 
-    # 3. kNN
-    print("\n[3/5] kNN (k=5)...")
-    knn = KNeighborsClassifier(n_neighbors=5)
-    knn.fit(train_reduced, y_train_int)
-    acc_knn = knn.score(test_reduced, y_true)
-    print(f"  Acurácia: {acc_knn*100:.2f}%")
+# kNN baseline
+knn = KNeighborsClassifier(n_neighbors=3)
+acc = run_classifier(X_train_emb, X_test_emb, y_train_int, y_test_int, knn)
 
-    # 4. Logistic Regression (baseline fraco)
-    print("\n[4/5] Logistic Regression...")
-    lr = LogisticRegression(max_iter=1000, random_state=42)
-    lr.fit(train_reduced, y_train_int)
-    acc_lr = lr.score(test_reduced, y_true)
-    print(f"  Acurácia: {acc_lr*100:.2f}%")
+results.append({
+    "Reduction": "None",
+    "Dim": X_train_emb.shape[1],
+    "Classifier": "kNN",
+    "Accuracy": acc
+})
 
-    # 5. XGBoost
-    print("\n[5/5] XGBoost Classifier...")
-    xgb = XGBClassifier(eval_metric='mlogloss', random_state=42)
-    xgb.fit(train_reduced, y_train_int)  
-    acc_xgb = xgb.score(test_reduced, y_true)
-    print(f"  Acurácia: {acc_xgb*100:.2f}%")
+# --------------- PCA reduction ---------------
+from sklearn.decomposition import PCA
 
-    # RESUMO
-    print("\n" + "="*60)
-    print(f"RESULTADOS - t-SNE {dims}D")
-    print("="*60)
-    print(f"Random Forest:        {acc_rf*100:.2f}%")
-    print(f"SVM (RBF):            {acc_svm*100:.2f}%")
-    print(f"kNN (k=5):            {acc_knn*100:.2f}%")
-    print(f"Logistic Regression:  {acc_lr*100:.2f}%")
-    print(f"XGBoost Classifier:   {acc_xgb*100:.2f}%")
-    print(f"\nBaseline (ResNet3D + FocalLoss): 92.03%")
-    print("="*60)
+pca_dims = [16, 32, 64, 128]
 
-# ---------------- apply t-SNE ----------------
-# t-SNE is non-parametric; train/test must be combined so the 2D space is consistent.
-emb_all = np.concatenate([emb_train, emb_test], axis=0) # concatenate train + test
+for d in pca_dims:
+    pca = PCA(n_components=d, random_state=42)
+    Xtr_pca = pca.fit_transform(X_train_emb)
+    Xte_pca = pca.transform(X_test_emb)
 
-tsne_dims = [2, 5, 10, 20, 30]
+    svm = SVC(kernel="rbf", C=10, gamma="scale")
+    acc = run_classifier(Xtr_pca, Xte_pca, y_train_int, y_test_int, svm)
 
-for dims in tsne_dims:
-    print(f"\nApplying t-SNE to reduce to {dims} dimensions...")
+    results.append({
+        "Reduction": "PCA",
+        "Dim": d,
+        "Classifier": "SVM",
+        "Accuracy": acc
+    })
+# --------------- LDA reduction ---------------
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 
-    # Use 'exact' method for dimensions > 3
-    method = 'barnes_hut' if dims <= 3 else 'exact'
-    
-    tsne = TSNE(
-        n_components=dims,
-        perplexity=30,
-        random_state=42,
-        learning_rate='auto',
-        init='pca',
-        method=method,  # Added this parameter
-        verbose=1  # Optional: show progress
+lda_dim = NUM_CLASSES - 1
+
+lda = LDA(n_components=lda_dim)
+Xtr_lda = lda.fit_transform(X_train_emb, y_train_int)
+Xte_lda = lda.transform(X_test_emb)
+
+svm = SVC(kernel="rbf", C=10, gamma="scale")
+acc = run_classifier(Xtr_lda, Xte_lda, y_train_int, y_test_int, svm)
+
+results.append({
+    "Reduction": "LDA",
+    "Dim": lda_dim,
+    "Classifier": "SVM",
+    "Accuracy": acc
+})
+# --------------- UMAP ---------------  
+import umap
+
+umap_dims = [2, 5, 10, 20]
+neighbors = [10, 30]
+
+for d in umap_dims:
+    for n in neighbors:
+        reducer = umap.UMAP(
+            n_components=d,
+            n_neighbors=n,
+            random_state=42
+        )
+
+        Xtr_umap = reducer.fit_transform(X_train_emb)
+        Xte_umap = reducer.transform(X_test_emb)
+
+        svm = SVC(kernel="rbf", C=10, gamma="scale")
+        acc = run_classifier(Xtr_umap, Xte_umap, y_train_int, y_test_int, svm)
+
+        results.append({
+            "Reduction": "UMAP",
+            "Dim": d,
+            "Classifier": "SVM",
+            "Accuracy": acc,
+            "Neighbors": n
+        })
+
+# --------------- Autoencoder reduction ---------------
+
+def build_autoencoder(input_dim, bottleneck):
+    inp = tf.keras.Input(shape=(input_dim,))
+    x = tf.keras.layers.Dense(256, activation="relu")(inp)
+    x = tf.keras.layers.Dense(128, activation="relu")(x)
+    bott = tf.keras.layers.Dense(bottleneck, activation="linear")(x)
+
+    x = tf.keras.layers.Dense(128, activation="relu")(bott)
+    x = tf.keras.layers.Dense(256, activation="relu")(x)
+    out = tf.keras.layers.Dense(input_dim, activation="linear")(x)
+
+    ae = tf.keras.Model(inp, out)
+    encoder = tf.keras.Model(inp, bott)
+    ae.compile(optimizer="adam", loss="mse")
+    return ae, encoder
+
+ae_dims = [16, 32, 64]
+
+for d in ae_dims:
+    ae, encoder = build_autoencoder(X_train_emb.shape[1], d)
+    ae.fit(
+        X_train_emb, X_train_emb,
+        epochs=50,
+        batch_size=64,
+        validation_split=0.1,
+        verbose=0
     )
 
-    all_reduced = tsne.fit_transform(emb_all)
+    Xtr_ae = encoder.predict(X_train_emb, verbose=0)
+    Xte_ae = encoder.predict(X_test_emb,  verbose=0)
 
-    # split again
-    train_reduced = all_reduced[:len(emb_train)]
-    test_reduced  = all_reduced[len(emb_train):]
+    svm = SVC(kernel="rbf", C=10, gamma="scale")
+    acc = run_classifier(Xtr_ae, Xte_ae, y_train_int, y_test_int, svm)
 
-    # Evaluate classifiers on the reduced data
-    evaluate_classifiers(train_reduced, test_reduced, y_train_int, y_true, dims)
+    results.append({
+        "Reduction": "Autoencoder",
+        "Dim": d,
+        "Classifier": "SVM",
+        "Accuracy": acc
+    })
+
+# --------------- results summary ---------------
+df_results = pd.DataFrame(results)
+df_results = df_results.sort_values(by="Accuracy", ascending=False)
+
+print(df_results)
+
 '''
 # ---------- reports and evaluation ----------
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+from sklearn.metrics import confusion_matrix, classification_report, accuracy_score
+
 y_pred_prob = clf.predict(test_2d)
 y_pred_int = np.argmax(y_pred_prob, axis=1)
 

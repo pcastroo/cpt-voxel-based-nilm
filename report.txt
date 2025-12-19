@@ -45,7 +45,6 @@ Random Forest:        91.42%
 SVM (RBF):            91.79%
 kNN (k=5):            91.54%
 Logistic Regression:  91.67%
-Logistic Regression:  91.67%
 XGBoost Classifier:   90.81%
 
 Baseline (ResNet3D + FocalLoss): 92.03%
@@ -60,6 +59,19 @@ SVM (RBF):            91.42%
 kNN (k=5):            92.16% <-----------------------------
 Logistic Regression:  90.07%
 XGBoost Classifier:   89.95%
+
+Baseline (ResNet3D + FocalLoss): 92.03%
+============================================================
+
+Applying t-SNE to reduce to 50 dimensions...
+============================================================
+RESULTADOS - t-SNE 50D
+============================================================
+Random Forest:        87.75%
+SVM (RBF):            90.93%
+kNN (k=5):            91.30%
+Logistic Regression:  77.70%
+XGBoost Classifier:   86.15%
 
 Baseline (ResNet3D + FocalLoss): 92.03%
 ============================================================
