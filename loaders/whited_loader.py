@@ -5,8 +5,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 from data_processing.Data import Data
 
+FOLDER_PATH = './datasets/WHITED'
+
 def parse_whited_filename(filename):
-    """Extract appliance type from WHITED filename"""
     name_without_ext = os.path.splitext(filename)[0]
     
     # remove the number in parentheses at the end
@@ -28,7 +29,7 @@ def process_file(file_path):  # process a single file
         
     # parse filename for appliance type (label)
     filename = os.path.basename(file_path)
-    label = parse_whited_filename(filename)
+    label = parse_whited_filename(filename).upper()
         
     return Data(
         current_segment=current_segment, 
@@ -41,12 +42,10 @@ def process_file(file_path):  # process a single file
 def load_whited():  # load whole WHITED dataset
     print("------------------------------")
     print("Initiating WHITED dataset loading...")
-    
-    folder_path = './datasets/WHITED'
-    
+        
     file_list = []
     
-    for root, _, files in os.walk(folder_path):  # walk through dataset directory
+    for root, _, files in os.walk(FOLDER_PATH):  # walk through dataset directory
         for f in files:
             if f.endswith('.flac'):
                 file_list.append(os.path.join(root, f))
@@ -60,7 +59,3 @@ def load_whited():  # load whole WHITED dataset
     print("------------------------------")
     
     return results
-
-# function to get all WHITED data, used in process_data.py
-def get_all_whited_data():
-    return load_whited()

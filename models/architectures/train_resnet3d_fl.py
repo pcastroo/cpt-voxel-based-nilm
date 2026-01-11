@@ -3,21 +3,25 @@ import seaborn as sns
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import classification_report, confusion_matrix
-
 from FocalLoss import FocalLoss
 
+from data_processing.data_augmentation import augment_dataset
+
 # ---------- load data ----------
-x_path = './preprocessed_data/X_PLAID-WHITED_v2.npy'
-y_path = './preprocessed_data/y_PLAID-WHITED_v2.npy'
+x_path = './preprocessed_data/X_PLAID-WHITED_RAW.npy'
+y_path = './preprocessed_data/y_PLAID-WHITED_RAW.npy'
 
 X, y = np.load(x_path), np.load(y_path)
 
 BATCH_SIZE = 32
 EPOCHS = 50
-MODEL_PATH = 'RESNET3D_PLAID-WHITED_v2_FL.keras'
+MODEL_PATH = 'RESNET3D_PLAID-WHITED_v4_FL.keras'
 VOXEL_RESOLUTION = 32
 NUM_CLASSES = len(np.unique(y))
 
@@ -27,6 +31,13 @@ X_train, X_test, y_train, y_test = train_test_split(
     random_state=42,
     stratify=y
 )
+
+# apply augmentation to complete dataset
+print(f"\n{'='*60}")
+print("APPLYING DATA AUGMENTATION...")
+print(f"{'='*60}\n")
+
+X_train, y_train = augment_dataset(X_train, y_train, config_path='./data_processing/augmentation_config.json')
 
 # encode labels
 le = LabelEncoder()
@@ -80,7 +91,6 @@ def residual_block_3d(x, filters, stride=1):
     return x
 
 def build_resnet3d(input_shape, num_classes): 
-
     inputs = tf.keras.Input(shape=input_shape)
 
     # initial block

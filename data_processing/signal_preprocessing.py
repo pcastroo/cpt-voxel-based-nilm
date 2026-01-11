@@ -7,37 +7,37 @@ DENSITY_MODE = True
 SMOOTH = True
 
 def voxelize_3d_trajectory(ia, ir, iv): # voxelization of 3D trajectory
-    # Initialize voxel grid
+    # initialize voxel grid
     voxel_grid = np.zeros((RESOLUTION, RESOLUTION, RESOLUTION), dtype=np.float32)
 
-    # Map from [-1, 1] to [0, RESOLUTION-1]
+    # map from [-1, 1] to [0, RESOLUTION-1]
     ia_indices = ((ia + 1) / 2 * (RESOLUTION - 1)).astype(np.int32)
     ir_indices = ((ir + 1) / 2 * (RESOLUTION - 1)).astype(np.int32)
     iv_indices = ((iv + 1) / 2 * (RESOLUTION - 1)).astype(np.int32)
     
-    # Clip to valid range (safety check)
+    # clip to valid range (safety check)
     ia_indices = np.clip(ia_indices, 0, RESOLUTION - 1)
     ir_indices = np.clip(ir_indices, 0, RESOLUTION - 1)
     iv_indices = np.clip(iv_indices, 0, RESOLUTION - 1)
     
-    # Fill voxel grid
+    # fill voxel grid
     if DENSITY_MODE:
-        # Count how many points fall into each voxel (density)
+        # count how many points fall into each voxel (density)
         for i in range(len(ia)):
             voxel_grid[ia_indices[i], ir_indices[i], iv_indices[i]] += 1
         
-        # Normalize density to [0, 1]
+        # normalize density to [0, 1]
         if voxel_grid.max() > 0:
             voxel_grid = voxel_grid / voxel_grid.max()
     else:
-        # Binary occupancy (0 or 1)
+        # binary occupancy (0 or 1)
         for i in range(len(ia)):
             voxel_grid[ia_indices[i], ir_indices[i], iv_indices[i]] = 1
     
-    # Optional: smooth the voxel grid to reduce sparsity
+    # optional: smooth the voxel grid to reduce sparsity
     if SMOOTH and DENSITY_MODE:
         voxel_grid = gaussian_filter(voxel_grid, sigma=1.0)
-        # Renormalize after smoothing
+        # renormalize after smoothing
         if voxel_grid.max() > 0:
             voxel_grid = voxel_grid / voxel_grid.max()
     

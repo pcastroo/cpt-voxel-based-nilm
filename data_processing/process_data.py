@@ -7,32 +7,13 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from loaders.plaid_loader import load_plaid
 from loaders.whited_loader import load_whited
 
-from data_processing.signal_preprocessing import build_voxel_dataset
-from data_processing.normalization import normalize, data_augmentation, Currents
 from data_processing.cpt_decomposition import CPT
+from data_processing.signal_preprocessing import build_voxel_dataset
+from data_processing.data_augmentation import augment_dataset
+from data_processing.normalization import normalize
 
-def calculate_class_segments(samples):
-    """Pre-calculate how many segments each class should have"""
-    all_labels = [s.label for s in samples]
-    unique_classes, class_counts = np.unique(all_labels, return_counts=True)
-    
-    segments_per_class = {}
-    for cls, count in zip(unique_classes, class_counts):
-        if count <= 10:
-            segments_per_class[cls] = 16
-            print(f"  ⚠️  [{cls}] Severely Underrepresented ({count} samples) - Will create 16 segments")
-        elif 10 < count < 50:
-            segments_per_class[cls] = 4
-            print(f"  ⚠️  [{cls}] Underrepresented ({count} samples) - Will create 4 segments")
-        else:
-            segments_per_class[cls] = 1
-    
-    return segments_per_class
-
-def process_data(x_path, y_path, save=False, dataset=''):
-    print(f"\n{'='*60}")
-    print(f"PROCESSING {dataset.upper()} DATASET")
-    print(f"{'='*60}\n")
+def process_data(x_path, y_path, augment=False, save=False, dataset=''):
+    print(f"Processing {dataset.upper()} dataset")
     
     # load dataset 
     if dataset.lower() == 'plaid':
@@ -40,16 +21,10 @@ def process_data(x_path, y_path, save=False, dataset=''):
     elif dataset.lower() == 'whited':
         samples = load_whited()
 
-    # PRE-CALCULATE segments per class
-    print(f"\nAnalyzing class distribution...")
-    segments_map = calculate_class_segments(samples)
-    print(f"{'='*60}\n")
-
     tensors, labels = [], []
     total_samples = len(samples)
     
     print(f"\nProcessing {total_samples} samples...")
-    print(f"{'='*60}\n")
 
     with tqdm(total=total_samples, desc="Overall Progress", unit="sample", 
               bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]') as pbar:
@@ -58,16 +33,11 @@ def process_data(x_path, y_path, save=False, dataset=''):
             pbar.set_description(f"Processing [{sample.label:30s}]")
             
             cpt_component = CPT(sample)
-            normalized_sample = normalize(cpt_component, sample)
-            
-            num_segments = segments_map[sample.label]
-            
-            data_augmented_samples = data_augmentation(normalized_sample, num_segments)   
+            normalized_sample = normalize(cpt_component, sample)    
+            tensor = build_voxel_dataset(normalized_sample)
 
-            for augmented_sample in data_augmented_samples:
-                tensor = build_voxel_dataset(augmented_sample)
-                tensors.append(tensor)
-                labels.append(augmented_sample.label)
+            tensors.append(tensor)
+            labels.append(sample.label)
             
             pbar.update(1) # update overall progress bar
 
@@ -78,6 +48,11 @@ def process_data(x_path, y_path, save=False, dataset=''):
     
     X = np.concatenate(tensors, axis=0)
     y = np.array(labels)
+    
+    if augment:
+        print("APPLYING DATA AUGMENTATION")
+        
+        X, y = augment_dataset(X, y)
 
     print(f"\n{'='*60}")
     print(f"DATASET SUMMARY - {dataset.upper()}")
@@ -86,7 +61,7 @@ def process_data(x_path, y_path, save=False, dataset=''):
     
     for class_name, count in zip(unique_classes, class_counts):
         percentage = (count / len(y)) * 100
-        bar_length = int(percentage / 2)  # Escala para 50 caracteres
+        bar_length = int(percentage / 2)  
         bar = '█' * bar_length + '░' * (50 - bar_length)
         print(f"{class_name:30s}: {count:4d} samples {bar} {percentage:5.1f}%")
     
@@ -121,10 +96,10 @@ if __name__ == "__main__":
 
     match user_choice:
         case '1' :
-            X, y = process_data(f'X_plaid.npy', f'y_plaid.npy', save=True, dataset='plaid')
+            X, y = process_data(f'X_plaid.npy', f'y_plaid.npy', augment=True, save=True, dataset='plaid')
 
         case '2':
-            X, y = process_data(f'X_whited.npy', f'y_whited.npy', save=True, dataset='whited')
+            X, y = process_data(f'X_whited.npy', f'y_whited.npy', augment=True, save=False, dataset='whited')
 
         case '3' :
             X_whited, y_whited = process_data('X_whited.npy', 'y_whited.npy', save=False, dataset='whited')
@@ -133,8 +108,15 @@ if __name__ == "__main__":
             X_combined = np.concatenate((X_whited, X_plaid), axis=0)
             y_combined = np.concatenate((y_whited, y_plaid), axis=0)
 
-            np.save('X_plaid_whited.npy', X_combined)
-            np.save('y_plaid_whited.npy', y_combined) 
+            # apply augmentation to complete dataset
+            print(f"\n{'='*60}")
+            print("APPLYING DATA AUGMENTATION...")
+            print(f"{'='*60}\n")
+    
+            X, y = augment_dataset(X_combined, y_combined)
+
+            np.save('X_PLAID-WHITED_AUG.npy', X)
+            np.save('y_PLAID-WHITED_AUG.npy', y) 
 
         case '4':
             print("Exiting...")

@@ -13,8 +13,8 @@ from loaders.whited_loader import get_all_whited_data
 from loaders.plaid_loader import get_all_plaid_data
 
 # file paths
-x_path = 'X.npy'
-y_path = 'y.npy'
+x_path = './preprocessed_data/X_PLAID-WHITED_RAW.npy'
+y_path = './preprocessed_data/y_PLAID-WHITED_RAW.npy'
 
 dados = get_all_whited_data() 
 data = dados[3]  # Select the i-th file
@@ -70,7 +70,7 @@ def plot_3d(cpt):
 
     return fig, ax
 
-""" # LOAD DATA FOR VOXEL VISUALIZATION AND STATISTICS
+# LOAD DATA FOR VOXEL VISUALIZATION AND STATISTICS
 X, y = np.load(x_path), np.load(y_path)
 
 def visualize_voxel_3d(voxel_grid):
@@ -157,7 +157,6 @@ def visualize_voxel_slices(voxel_grid):
     plt.tight_layout()
     return fig
 
-
 def visualize_multiple_samples(voxel_dataset, labels, indices=None):
     if indices is None:
         indices = list(range(min(6, len(voxel_dataset))))
@@ -241,7 +240,6 @@ def compare_voxel_statistics(voxel_dataset):
     
     
     print("=" * 60)
-"""
 
 # visualize plot 2d
 fig, ax = plot_2d(cpt, data)
@@ -253,7 +251,6 @@ fig, ax = plot_3d(cpt)
 plt.tight_layout()
 plt.show()  
 
-""" 
 # visualize voxel 3d 
 fig, ax = visualize_voxel_3d(X[2])
 plt.tight_layout()
@@ -269,4 +266,4 @@ fig = visualize_multiple_samples(X, y, indices=[301, 500, 700])
 plt.tight_layout()
 plt.show() 
 
-compare_voxel_statistics(X)  """
+compare_voxel_statistics(X) 

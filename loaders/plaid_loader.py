@@ -1,17 +1,18 @@
-import os, json
+import os, json, numpy
 import polars as pl
 from concurrent.futures import ThreadPoolExecutor
-import numpy as np
-
+from functools import partial
 from data_processing.Data import Data
 
+FOLDER_PATH = './datasets/PLAID/submetered'
+METADATA_PATH = './datasets/PLAID/metadata_submetered.json'
 
 def process_file(file_path, metadata): # process a single file
     file_id = os.path.splitext(os.path.basename(file_path))[0]
     data = pl.read_csv(file_path, has_header=False, new_columns=["Current", "Voltage"])
 
     meta = metadata[file_id]
-    label = meta["appliance"]["type"]
+    label = (meta["appliance"]["type"]).upper()
     sampling_frequency = int(meta["header"]["sampling_frequency"].replace("Hz", ""))
     f_mains = 60
 
@@ -21,32 +22,26 @@ def process_file(file_path, metadata): # process a single file
     return Data(current_segment, voltage_segment, label, sampling_frequency, f_mains)
 
 def load_plaid(): # load whole PLAID dataset
-    print("------------------------------")
-    print("Initiating PLAID dataset loading...")
-    
-    folder_path = './datasets/PLAID/submetered'
-    metadata_path = './datasets/PLAID/metadata_submetered.json'
+    print("Loading PLAID dataset")
 
-    with open(metadata_path, "r") as f: # load metadata
+    # load metadata
+    with open(METADATA_PATH, "r") as f: 
         metadata = json.load(f)
 
     file_list = []
 
-    for root, _, files in os.walk(folder_path): # walk through dataset directory
+    # walk through dataset directory
+    for root, _, files in os.walk(FOLDER_PATH): 
         for f in files:
             if f.endswith('.csv'):
                 file_list.append(os.path.join(root, f))
 
-    #file_list = file_list[:6]
+    file_list = file_list[:10]
 
-    with ThreadPoolExecutor(max_workers=8) as executor: # parallel loading utilizing threads and 8 workers
-        results = list(executor.map(lambda fp: process_file(fp, metadata), file_list))
+    # parallel loading utilizing threads and 8 workers
+    with ThreadPoolExecutor(max_workers=8) as executor: 
+        results = list(executor.map(partial(process_file, metadata=metadata), file_list))
 
     print(f"Loaded {len(results)} files from PLAID dataset.")
-    print("------------------------------")
 
     return results
-
-# function to get all PLAID data, used in process_data.py
-def get_all_plaid_data():
-    return load_plaid()
